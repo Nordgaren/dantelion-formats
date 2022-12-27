@@ -30,50 +30,50 @@ pub(crate) struct BHD5 {
 
 pub(crate) struct BHD5Header {
     pub magic: String,
-    pub unk04: i8,
+    pub unk04: u8,
     pub unk05: u8,
     pub unk06: u8,
     pub unk07: u8,
-    pub unk08: i32,
-    pub file_size: i32,
-    pub bucket_count: i32,
-    pub buckets_offset: i32,
-    pub salt_len: i32,
+    pub unk08: u32,
+    pub file_size: u32,
+    pub bucket_count: u32,
+    pub buckets_offset: u32,
+    pub salt_len: u32,
     pub salt: String,
 }
 
 pub(crate) struct BHD5Bucket {
-    pub file_header_count: i32,
-    pub file_headers_offset: i32,
+    pub file_header_count: u32,
+    pub file_headers_offset: u32,
     pub file_headers: Vec<FileHeader>,
 }
 
 pub(crate) struct FileHeader {
-    pub file_path_hash: i64,
-    pub padded_file_size: i32,
-    pub file_size: i64,
-    pub file_offset: i64,
-    pub salted_hash_offset: i64,
-    pub aes_key_offset: i64,
+    pub file_path_hash: u64,
+    pub padded_file_size: u32,
+    pub file_size: u64,
+    pub file_offset: u64,
+    pub salted_hash_offset: u64,
+    pub aes_key_offset: u64,
     pub salted_hash: Option<SaltedHash>,
     pub aes_key: Option<AESKey>,
 }
 
 pub(crate) struct SaltedHash {
     pub hash: Vec<u8>,
-    pub range_count: i32,
+    pub range_count: u32,
     pub ranges: Vec<Range>,
 }
 
 pub(crate) struct AESKey {
     pub key: Vec<u8>,
-    pub range_count: i32,
+    pub range_count: u32,
     pub ranges: Vec<Range>,
 }
 
 pub(crate) struct Range {
-    pub begin: i64,
-    pub end: i64,
+    pub begin: u64,
+    pub end: u64,
 }
 
 impl BHD5 {
@@ -99,15 +99,15 @@ impl BHD5 {
         // Get BHD5Header
         let mut header = BHD5Header {
             magic: util::read_fixed_string(&mut br, BHD5::MAGIC_SIZE).expect("Could not parse BHD5Header.magic"),
-            unk04: br.read_i8().expect("Could not read BHD5Header.unk04!"),
+            unk04: br.read_u8().expect("Could not read BHD5Header.unk04!"),
             unk05: br.read_u8().expect("Could not read BHD5Header.unk05!"),
             unk06: br.read_u8().expect("Could not read BHD5Header.unk06!"),
             unk07: br.read_u8().expect("Could not read BHD5Header.unk07!"),
-            unk08: br.read_i32().expect("Could not read BHD5Header.unk08!"),
-            file_size: br.read_i32().expect("Could not read BHD5Header.file_size!"),
-            bucket_count: br.read_i32().expect("Could not read BHD5Header.bucket_count!"),
-            buckets_offset: br.read_i32().expect("Could not read BHD5Header.buckets_offset!"),
-            salt_len: br.read_i32().expect("Could not read BHD5Header.salt_len!"),
+            unk08: br.read_u32().expect("Could not read BHD5Header.unk08!"),
+            file_size: br.read_u32().expect("Could not read BHD5Header.file_size!"),
+            bucket_count: br.read_u32().expect("Could not read BHD5Header.bucket_count!"),
+            buckets_offset: br.read_u32().expect("Could not read BHD5Header.buckets_offset!"),
+            salt_len: br.read_u32().expect("Could not read BHD5Header.salt_len!"),
             salt: String::new(),
         };
 
@@ -120,8 +120,8 @@ impl BHD5 {
         let mut buckets: Vec<BHD5Bucket> = Vec::with_capacity(header.bucket_count as usize);
 
         for _ in 0..header.bucket_count {
-            let file_header_count = br.read_i32().expect("Unable to read Bucket.file_header_count!");
-            let file_headers_offset = br.read_i32().expect("Unable to read Bucket.file_headers_offset!");
+            let file_header_count = br.read_u32().expect("Unable to read Bucket.file_header_count!");
+            let file_headers_offset = br.read_u32().expect("Unable to read Bucket.file_headers_offset!");
             let file_headers = BHD5::read_file_headers(&mut br, file_header_count, file_headers_offset, format).expect("Could not read Bucket.file_headers!");
             buckets.push(BHD5Bucket {
                 file_header_count,
@@ -137,32 +137,32 @@ impl BHD5 {
         })
     }
 
-    fn read_file_headers(br: &mut BinaryReader, file_header_count: i32, file_headers_offset: i32, format: BHD5Format) -> Result<Vec<FileHeader>, Error> {
+    fn read_file_headers(br: &mut BinaryReader, file_header_count: u32, file_headers_offset: u32, format: BHD5Format) -> Result<Vec<FileHeader>, Error> {
         let mut headers: Vec<FileHeader> = Vec::with_capacity(file_header_count as usize);
         let pos = br.pos;
         br.jmp(file_headers_offset as usize);
         for _ in 0..file_header_count {
             if format == BHD5Format::EldenRing {
-                let file_path_hash = br.read_i64().expect("Unable to read FileHeader.file_path_hash!");
-                let padded_file_size = br.read_i32().expect("Unable to read FileHeader.padded_file_size!");
-                let file_size = br.read_i32().expect("Unable to read FileHeader.file_size!") as i64;
-                let file_offset = br.read_i64().expect("Unable to read FileHeader.file_offset!");
-                let salted_hash_offset = br.read_i64().expect("Unable to read FileHeader.salted_hash_offset!");
-                let aes_key_offset = br.read_i64().expect("Unable to read FileHeader.aes_key_offset!");
+                let file_path_hash = br.read_u64().expect("Unable to read FileHeader.file_path_hash!");
+                let padded_file_size = br.read_u32().expect("Unable to read FileHeader.padded_file_size!");
+                let file_size = br.read_u32().expect("Unable to read FileHeader.file_size!") as u64; //Read a 32 bit file size, but store it in a 64 bit field
+                let file_offset = br.read_u64().expect("Unable to read FileHeader.file_offset!");
+                let salted_hash_offset = br.read_u64().expect("Unable to read FileHeader.salted_hash_offset!");
+                let aes_key_offset = br.read_u64().expect("Unable to read FileHeader.aes_key_offset!");
                 let salted_hash = BHD5::read_salted_hash(br, salted_hash_offset);
                 let aes_key = BHD5::read_aes_key(br, aes_key_offset);
                 headers.push(FileHeader { file_path_hash, padded_file_size, file_size, file_offset, salted_hash_offset, aes_key_offset, salted_hash, aes_key })
             } else {
-                let file_path_hash = br.read_i32().expect("Unable to read FileHeader.file_path_hash!") as i64; //Read a 32 bit hash but store it in a 64 bit field
-                let padded_file_size = br.read_i32().expect("Unable to read FileHeader.padded_file_size!");
-                let file_offset = br.read_i64().expect("Unable to read FileHeader.file_offset!");
-                let salted_hash_offset = br.read_i64().expect("Unable to read FileHeader.salted_hash_offset!");
-                let aes_key_offset = br.read_i64().expect("Unable to read FileHeader.aes_key_offset!");
+                let file_path_hash = br.read_u32().expect("Unable to read FileHeader.file_path_hash!") as u64; //Read a 32 bit hash, but store it in a 64 bit field
+                let padded_file_size = br.read_u32().expect("Unable to read FileHeader.padded_file_size!");
+                let file_offset = br.read_u64().expect("Unable to read FileHeader.file_offset!");
+                let salted_hash_offset = br.read_u64().expect("Unable to read FileHeader.salted_hash_offset!");
+                let aes_key_offset = br.read_u64().expect("Unable to read FileHeader.aes_key_offset!");
                 let salted_hash = BHD5::read_salted_hash(br, salted_hash_offset);
                 let aes_key = BHD5::read_aes_key(br, aes_key_offset);
-                let mut file_size = -1;
+                let mut file_size = 0;
                 if format == BHD5Format::DarkSoulsIII {
-                    file_size = br.read_i64().expect("Unable to read FileHeader.file_size!");
+                    file_size = br.read_u64().expect("Unable to read FileHeader.file_size!");
                 }
                 headers.push(FileHeader { file_path_hash, padded_file_size, file_size, file_offset, salted_hash_offset, aes_key_offset, salted_hash, aes_key })
             }
@@ -172,7 +172,7 @@ impl BHD5 {
         return Ok(headers);
     }
 
-    fn read_salted_hash(br: &mut BinaryReader, salted_hash_offset: i64) -> Option<SaltedHash> {
+    fn read_salted_hash(br: &mut BinaryReader, salted_hash_offset: u64) -> Option<SaltedHash> {
         if salted_hash_offset < 1 {
             return None;
         }
@@ -181,7 +181,7 @@ impl BHD5 {
         br.jmp(salted_hash_offset as usize);
 
         let hash = br.read_bytes(BHD5::SALTED_HASH_SIZE).expect("Could not read SaltedHash.hash!").to_vec();
-        let range_count = br.read_i32().expect("Could not read SaltedHash.range_count!");
+        let range_count = br.read_u32().expect("Could not read SaltedHash.range_count!");
         let ranges = BHD5::read_ranges(br, range_count).expect("Could not parse SaltedHash.ranges!");;
 
         br.jmp(pos);
@@ -194,7 +194,7 @@ impl BHD5 {
         )
     }
 
-    fn read_aes_key(br: &mut BinaryReader, aes_key_offset: i64) -> Option<AESKey> {
+    fn read_aes_key(br: &mut BinaryReader, aes_key_offset: u64) -> Option<AESKey> {
         if aes_key_offset < 1 {
             return None;
         }
@@ -203,7 +203,7 @@ impl BHD5 {
         br.jmp(aes_key_offset as usize);
 
         let key = br.read_bytes(BHD5::AES_KEY_SIZE).expect("Could not read AESKey.key!").to_vec();
-        let range_count = br.read_i32().expect("Could not read AESKey.range_count!");
+        let range_count = br.read_u32().expect("Could not read AESKey.range_count!");
         let ranges = BHD5::read_ranges(br, range_count).expect("Could not parse AESKey.ranges!");
         br.jmp(pos);
 
@@ -215,11 +215,11 @@ impl BHD5 {
        )
     }
 
-    fn read_ranges(br: &mut BinaryReader, range_count: i32) -> Result<Vec<Range>, Error> {
+    fn read_ranges(br: &mut BinaryReader, range_count: u32) -> Result<Vec<Range>, Error> {
         let mut ranges: Vec<Range> = Vec::with_capacity(range_count as usize);
         for _ in 0..range_count {
-            let begin = br.read_i64().expect("Could not read Range.begin!");
-            let end = br.read_i64().expect("Could not read Range.end!");
+            let begin = br.read_u64().expect("Could not read Range.begin!");
+            let end = br.read_u64().expect("Could not read Range.end!");
             ranges.push(Range { begin, end })
         }
         return Ok(ranges);
@@ -228,7 +228,7 @@ impl BHD5 {
 
 fn check_bhd5_header(header: &BHD5Header) {
     assert_eq!(header.magic, "BHD5");
-    assert_eq!(header.unk04, -1, "header.unk04: {}", header.unk04);
+    assert_eq!(header.unk04, u8::MAX, "header.unk04: {}", header.unk04);
     assert!(header.unk05 == 0 || header.unk05 == 1, "header.unk05: {}", header.unk05);
     assert_eq!(header.unk06, 0, "header.unk06: {}", header.unk06);
     assert_eq!(header.unk07, 0, "header.unk07: {}", header.unk07);
