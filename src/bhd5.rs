@@ -1,6 +1,7 @@
 use std::fs;
+use std::io::Error;
 use binary_reader::{BinaryReader, Endian};
-use crate::crypto_util;
+use crate::{crypto_util, util};
 
 //Idk how necessary this is. Might need it for DS1, idk.
 pub(crate) enum GameType {
@@ -80,7 +81,7 @@ impl BHD5 {
     const SALTED_HASH_SIZE: usize = 32;
     const AES_KEY_SIZE: usize = 16;
 
-    pub fn from_path(path: &str) -> Result<BHD5, std::io::Error> {
+    pub fn from_path(path: &str) -> Result<BHD5, Error> {
         let file = fs::read(path)
             .expect(&format!("Could not read file: {path}"));
 
@@ -91,15 +92,13 @@ impl BHD5 {
         Ok(BHD5::from_bytes(&decrypted).expect(&format!("Could not parse decrypted bhd5: {path}!")))
     }
 
-    pub fn from_bytes(file: &[u8]) -> Result<BHD5, std::io::Error> {
+    pub fn from_bytes(file: &[u8]) -> Result<BHD5, Error> {
         let mut br = BinaryReader::from_u8(file);
         br.set_endian(Endian::Little);
 
         // Get BHD5Header
-        let magic_bytes = br.read_bytes(BHD5::MAGIC_SIZE).expect("Could not read magic bytes");
-        let magic = String::from_utf8(magic_bytes.to_vec()).expect("Could not parse BHD5Header.magic");
         let mut header = BHD5Header {
-            magic,
+            magic: util::read_fixed_string(&mut br, BHD5::MAGIC_SIZE).expect("Could not parse BHD5Header.magic"),
             unk04: br.read_i8().expect("Could not read BHD5Header.unk04!"),
             unk05: br.read_u8().expect("Could not read BHD5Header.unk05!"),
             unk06: br.read_u8().expect("Could not read BHD5Header.unk06!"),
@@ -114,8 +113,7 @@ impl BHD5 {
 
         check_bhd5_header(&header);
 
-        let salt = br.read_bytes(header.salt_len as usize).expect("Could not read salt bytes!");
-        header.salt = String::from_utf8(salt.to_vec()).expect("Could not parse BHD5Header.salt!");
+        header.salt = util::read_fixed_string(&mut br, header.salt_len as usize).expect("Could not parse BHD5Header.magic");
         let format: BHD5Format = get_bhd5_format(&header.salt);
 
         // Get buckets
@@ -139,7 +137,7 @@ impl BHD5 {
         })
     }
 
-    fn read_file_headers(br: &mut BinaryReader, file_header_count: i32, file_headers_offset: i32, format: BHD5Format) -> Result<Vec<FileHeader>, std::io::Error> {
+    fn read_file_headers(br: &mut BinaryReader, file_header_count: i32, file_headers_offset: i32, format: BHD5Format) -> Result<Vec<FileHeader>, Error> {
         let mut headers: Vec<FileHeader> = Vec::with_capacity(file_header_count as usize);
         let pos = br.pos;
         br.jmp(file_headers_offset as usize);
@@ -184,7 +182,7 @@ impl BHD5 {
 
         let hash = br.read_bytes(BHD5::SALTED_HASH_SIZE).expect("Could not read SaltedHash.hash!").to_vec();
         let range_count = br.read_i32().expect("Could not read SaltedHash.range_count!");
-        let ranges = BHD5::get_ranges(br, range_count).expect("Could not parse SaltedHash.ranges!");;
+        let ranges = BHD5::read_ranges(br, range_count).expect("Could not parse SaltedHash.ranges!");;
 
         br.jmp(pos);
 
@@ -206,7 +204,7 @@ impl BHD5 {
 
         let key = br.read_bytes(BHD5::AES_KEY_SIZE).expect("Could not read AESKey.key!").to_vec();
         let range_count = br.read_i32().expect("Could not read AESKey.range_count!");
-        let ranges = BHD5::get_ranges(br, range_count).expect("Could not parse AESKey.ranges!");
+        let ranges = BHD5::read_ranges(br, range_count).expect("Could not parse AESKey.ranges!");
         br.jmp(pos);
 
        Some(AESKey {
@@ -217,7 +215,7 @@ impl BHD5 {
        )
     }
 
-    fn get_ranges(br: &mut BinaryReader, range_count: i32) -> Result<Vec<Range>, std::io::Error> {
+    fn read_ranges(br: &mut BinaryReader, range_count: i32) -> Result<Vec<Range>, Error> {
         let mut ranges: Vec<Range> = Vec::with_capacity(range_count as usize);
         for _ in 0..range_count {
             let begin = br.read_i64().expect("Could not read Range.begin!");
@@ -229,7 +227,7 @@ impl BHD5 {
 }
 
 fn check_bhd5_header(header: &BHD5Header) {
-    assert_eq!(magic, "BHD5");
+    assert_eq!(header.magic, "BHD5");
     assert_eq!(header.unk04, -1, "header.unk04: {}", header.unk04);
     assert!(header.unk05 == 0 || header.unk05 == 1, "header.unk05: {}", header.unk05);
     assert_eq!(header.unk06, 0, "header.unk06: {}", header.unk06);

@@ -1,3 +1,7 @@
+use std::fs;
+use std::io::Error;
+use binary_reader::{BinaryReader, Endian};
+
 struct BND4 {
     pub header: BND4Header,
     pub files: Vec<File>,
@@ -42,8 +46,18 @@ impl BND4 {
     const SALTED_HASH_SIZE: usize = 32;
     const AES_KEY_SIZE: usize = 16;
 
-    pub fn from_path(path: &str) -> Result<BND4, std::io::Error> {
+    pub fn from_path(path: &str) -> Result<BND4, Error> {
+        let file = fs::read(path)
+            .expect(&format!("Could not read file: {path}"));
 
+
+        Ok(BND4::from_bytes(&file).expect(&format!("Could not parse decrypted bhd5: {path}!")))
+    }
+
+
+    pub fn from_bytes(file: &[u8]) -> Result<BND4, Error> {
+        let mut br = BinaryReader::from_u8(file);
+        br.set_endian(Endian::Little);
 
         todo!()
     }
