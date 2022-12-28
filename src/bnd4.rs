@@ -91,8 +91,14 @@ impl BND4 {
 
 
     pub fn from_bytes(file: &[u8]) -> Result<BND4> {
-        let dcx = DCX::from_bytes(file)?;
-        let bytes = dcx.decompress()?;
+        let mut bytes;
+        if DCX::is(file) {
+            let dcx = DCX::from_bytes(file)?;
+            bytes = dcx.decompress()?;
+        } else {
+            bytes = file.to_vec();
+        }
+
         let mut br = BinaryReader::from_vec(&bytes);
 
         // IDK if I should peek and check first, or just read up until BE and then do the rest of the parsing in the header declaration

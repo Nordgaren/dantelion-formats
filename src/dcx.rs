@@ -9,6 +9,7 @@ pub struct DCX {
     pub header: DCXHeader,
     pub content: Vec<u8>,
 }
+
 #[repr(C)]
 pub struct DCXHeader {
     pub magic: String,
@@ -62,6 +63,15 @@ impl DCX {
     const FORMAT_SIZE: usize = 4;
     const DCA_SIZE: usize = 4;
     const EGDT_SIZE: usize = 4;
+
+    pub(crate) fn is(bytes: &[u8]) -> bool {
+        let magic = String::from_utf8(bytes[..4].to_vec()).expect("Could not parse file magic!");
+        if magic == "DCX\0" {
+            return true;
+        }
+
+        return false;
+    }
 
     pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>> {
         let dcx = DCX::from_bytes(bytes)?;

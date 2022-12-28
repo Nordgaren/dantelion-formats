@@ -51,7 +51,7 @@ mod tests {
         let dcx = DCX::from_bytes(&decrypted).expect("Could not parse DCX");
         assert_eq!(dcx.header.magic, "DCX\0");
 
-        let bnd = BND4::from_bytes(&decrypted).expect("Could not parse BND4");
+        let bnd = BND4::from_bytes(&dcx.decompress().expect("Could not decompress DCX")).expect("Could not parse BND4");
 
         for file in bnd.files {
             println!("{}", file.name.unwrap());
