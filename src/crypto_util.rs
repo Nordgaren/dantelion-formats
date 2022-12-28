@@ -1,5 +1,5 @@
 use std::{fs, io};
-use std::io::{Result, Read};
+use std::io::{Result, Read, Error, ErrorKind};
 use std::path::Path;
 use openssl::symm::*;
 use openssl::rsa::{Padding, Rsa};
@@ -7,7 +7,7 @@ use openssl::rsa::{Padding, Rsa};
 pub(crate) fn decrypt_regulation(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     let iv = &file[..16];
     let cipher = Cipher::aes_256_cbc();
-    let mut crypter = Crypter::new(cipher, Mode::Decrypt, key, Some(iv)).expect("Could not create cryptor");
+    let mut crypter = Crypter::new(cipher, Mode::Decrypt, key, Some(iv))?;
     crypter.pad(false);
     let encypted = &file[16..];
     let mut out = vec![0; file.len() + cipher.block_size()];
@@ -20,7 +20,7 @@ pub(crate) fn decrypt_regulation(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 
     // Read the private key from a PEM file
-    let public_key = Rsa::public_key_from_pem_pkcs1(key).expect("PEM Key");
+    let public_key = Rsa::public_key_from_pem_pkcs1(key)?;
 
     // Decrypt the data using the private key
     let key_size = public_key.size() as usize;
@@ -31,7 +31,7 @@ pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
         let mut decrypted_block = vec![0; key_size];
         let next_block: usize = (len + key_size);
         let block_data = &file[len..next_block];
-        len += public_key.public_decrypt(block_data, &mut decrypted_block, Padding::NONE).expect("Public decrypt failed!");
+        len += public_key.public_decrypt(block_data, &mut decrypted_block, Padding::NONE)?;
         decrypted_data.extend_from_slice(&decrypted_block[1..]);
     }
 
@@ -41,15 +41,16 @@ pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     return Ok(decrypted_data);
 }
 
-pub(crate) fn get_elden_ring_bhd5_key(path: &str) -> &[u8] {
-    let file_name = Path::new(path).file_stem().unwrap().to_str().unwrap();
+pub(crate) fn get_elden_ring_bhd5_key(path: &str) -> Result<&[u8]> {
+    let file_name = Path::new(path)
+        .file_stem().unwrap().to_str().unwrap();
     for key in ELDEN_RING_KEYS {
         if key.0 == file_name {
-            return key.1.as_bytes();
+            return Ok(key.1.as_bytes());
         }
     }
 
-    panic!("Could not find key for {}", file_name)
+    Err(Error::new(ErrorKind::NotFound, format!("Could not find key for {}", file_name)))
 }
 
 pub(crate) const ER_REGULATION_KEY: [u8; 0x20] = [0x99, 0xBF, 0xFC, 0x36, 0x6A, 0x6B, 0xC8, 0xC6, 0xF5,

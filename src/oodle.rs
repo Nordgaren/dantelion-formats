@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::io::Result;
+use std::io::{Error, ErrorKind};
 use libloading::os::windows::{Library, Symbol};
 use crate::oodle::CheckCRC::No;
 use crate::oodle::Decode_ThreadPhase::ThreadPhaseAll;
@@ -43,17 +43,26 @@ ThreadPhaseAll = 3
 //     fn OodleLZ_GetDecodeBufferSize(raw_size: usize, corruption_possible: bool) -> usize;
 // }
 
-pub unsafe fn decompress(data: &[u8], uncompressed_size: usize) -> Result<Vec<u8>> {
+pub unsafe fn decompress(data: &[u8], uncompressed_size: usize) -> Result<Vec<u8>, libloading::Error> {
 
-    let oodle = Library::new(get_oodle_path()).expect("Could now find oo2core_6_win64.dll");
-    let oodle_lz_get_decode_buffer_size: Symbol<unsafe extern "stdcall" fn(usize, bool) -> usize> =
-        oodle.get(b"OodleLZ_GetDecodeBufferSize").expect("Could not find OodleLZ_GetDecodeBufferSize in oodle dll");
+    let oodle_path: String;
+    match get_oodle_path() {
+        Ok(result) => match result {
+            None => return Err(libloading::Error::LoadLibraryExWUnknown),
+            Some(path) => oodle_path = path
+        },
+        Err(err) => return Err(libloading::Error::LoadLibraryExWUnknown)
 
-    let oodle_lz_decompress :Symbol<unsafe extern "stdcall" fn(*const u8, usize, *mut u8, usize,
+    }
+    let oodle = Library::new(&oodle_path)?;
+    let oodle_lz_get_decode_buffer_size: Symbol<unsafe extern fn(usize, bool) -> usize> =
+        oodle.get(b"OodleLZ_GetDecodeBufferSize")?;
+
+    let oodle_lz_decompress :Symbol<unsafe extern fn(*const u8, usize, *mut u8, usize,
                                                      FuzzSafe, CheckCRC, Verbosity,
                                                       usize, usize, usize, usize,
                                                       usize, usize, Decode_ThreadPhase) -> usize> =
-        oodle.get(b"OodleLZ_Decompress").expect("Could not find OodleLZ_Decompress in oodle dll");
+        oodle.get(b"OodleLZ_Decompress")?;
 
 
     let decoded_buffer_size = oodle_lz_get_decode_buffer_size(uncompressed_size, true);

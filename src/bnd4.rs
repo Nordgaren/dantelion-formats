@@ -1,5 +1,6 @@
 use std::fs;
-use std::io::Result;
+use std::io::{ErrorKind, Result};
+use std::string::FromUtf8Error;
 use binary_reader::{BinaryReader, Endian};
 use crate::dcx::DCX;
 use crate::util;
@@ -92,12 +93,19 @@ impl BND4 {
 
     pub fn from_bytes(file: &[u8]) -> Result<BND4> {
         let mut bytes;
-        if DCX::is(file) {
-            let dcx = DCX::from_bytes(file)?;
-            bytes = dcx.decompress()?;
-        } else {
-            bytes = file.to_vec();
+
+        match DCX::is(file) {
+            Ok(is_dcx) => {
+                if is_dcx {
+                    let dcx = DCX::from_bytes(file)?;
+                    bytes = dcx.decompress()?;
+                } else {
+                    bytes = file.to_vec();
+                }
+            }
+            Err(err) => return Err(std::io::Error::new(ErrorKind::InvalidData, err.to_string()))
         }
+
 
         let mut br = BinaryReader::from_vec(&bytes);
 
@@ -221,11 +229,10 @@ fn read_bnd4_files(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<Fil
         }
 
         let name = match name_offset {
-            None => { None }
-            Some(offset) => {
-                Some(get_file_name(br, offset, header)?)
-            }
+            None => None,
+            Some(offset) => Some(get_file_name(br, offset, header)?)
         };
+
         let data: Option<Vec<u8>> = Some(vec![]);
         let file = File {
             raw_flags,

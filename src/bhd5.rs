@@ -22,12 +22,14 @@ pub(crate) enum BHD5Format {
     DarkSoulsIII,
     EldenRing,
 }
+
 #[repr(C)]
 pub(crate) struct BHD5 {
     pub format: BHD5Format,
     pub bhd5_header: BHD5Header,
     pub buckets: Vec<BHD5Bucket>,
 }
+
 #[repr(C)]
 pub(crate) struct BHD5Header {
     pub magic: String,
@@ -42,12 +44,14 @@ pub(crate) struct BHD5Header {
     pub salt_len: u32,
     pub salt: String,
 }
+
 #[repr(C)]
 pub(crate) struct BHD5Bucket {
     pub file_header_count: u32,
     pub file_headers_offset: u32,
     pub file_headers: Vec<FileHeader>,
 }
+
 #[repr(C)]
 pub(crate) struct FileHeader {
     pub file_path_hash: u64,
@@ -59,18 +63,21 @@ pub(crate) struct FileHeader {
     pub salted_hash: Option<SaltedHash>,
     pub aes_key: Option<AESKey>,
 }
+
 #[repr(C)]
 pub(crate) struct SaltedHash {
     pub hash: Vec<u8>,
     pub range_count: u32,
     pub ranges: Vec<Range>,
 }
+
 #[repr(C)]
 pub(crate) struct AESKey {
     pub key: Vec<u8>,
     pub range_count: u32,
     pub ranges: Vec<Range>,
 }
+
 #[repr(C)]
 pub(crate) struct Range {
     pub begin: u64,
@@ -85,9 +92,8 @@ impl BHD5 {
     pub fn from_path(path: &str) -> Result<BHD5> {
         let file = fs::read(path)?;
 
-        let key = crypto_util::get_elden_ring_bhd5_key(path);
+        let key = crypto_util::get_elden_ring_bhd5_key(path)?;
         let decrypted = crypto_util::decrypt_bhd5_file(file.as_slice(), key)?;
-
         Ok(BHD5::from_bytes(&decrypted)?)
     }
 

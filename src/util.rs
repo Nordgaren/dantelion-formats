@@ -1,7 +1,9 @@
+use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Result, Read};
+use std::io::{BufRead, BufReader, Result, Read, ErrorKind};
 use std::mem::size_of;
 use std::path::Path;
+use std::string::FromUtf8Error;
 use binary_reader::{BinaryReader, Endian};
 use winreg;
 use winreg::enums::*;
@@ -19,61 +21,54 @@ pub(crate) static STEAM_REGISTRY_LOCATIONS: [(&str, &str, &str); 4] = [
 ];
 
 // Works, for now...
-pub fn get_oodle_path() -> String {
+pub fn get_oodle_path() -> Result<Option<String>> {
     if Path::new("oo2core_6_win64.dll").exists() {
-        return "oo2core_6_win64.dll".to_string();
+        return Ok(Some("oo2core_6_win64.dll".to_string()));
     }
 
     let steam_path = get_steam_install_path();
     match steam_path {
-        None => { }
+        None => {}
         Some(steam_path) => {
-            let oodle_path = search_steam_for_oodle(steam_path);
-            match oodle_path {
-                None => {}
-                Some(oodle_path) => {
-                    return oodle_path;
-                }
-            }
+            return Ok(search_steam_for_oodle(steam_path)?);
         }
     }
 
-    panic!("Could not find oo2core_6_win64.dll! Please place it in the working directory!")
+    Ok(None)
 }
 
-fn search_steam_for_oodle(steam_path: String) -> Option<String> {
-    let library_folders = BufReader::new(File::open(format!(r"{steam_path}/SteamApps/libraryfolders.vdf")).expect(&format!("Could not open steam path:\n{steam_path}")));
+fn search_steam_for_oodle(steam_path: String) -> Result<Option<String>> {
+    let library_folders = BufReader::new(File::open(format!(r"{steam_path}/SteamApps/libraryfolders.vdf"))?);
 
-    for line in library_folders.lines().map(|x| x.expect("")).skip_while(|p| p.contains("\"path\"")) {
+    for line in library_folders.lines().map(|x| x.unwrap()).skip_while(|p| p.contains("\"path\"")) {
         let split: Vec<&str> = line.split("\t").skip_while(|&x| !x.to_lowercase().contains("steam")).collect();
         if (split.len() < 1) { continue; }
 
         let steam_path = split[0].replace("\"", "");
         let elden_path = format!("{}\\steamapps\\common\\ELDEN RING\\Game\\oo2core_6_win64.dll", steam_path);
         if Path::new(&elden_path).exists() {
-            return Some(elden_path.replace("\\\\", "\\"));
+            return Ok(Some(elden_path.replace("\\\\", "\\")));
         }
 
         let sekiro_path = format!("{}\\steamapps\\common\\Sekiro\\Game\\oo2core_6_win64.dll", steam_path);
         if Path::new(&sekiro_path).exists() {
-            return Some(sekiro_path.replace("\\\\", "\\"));
+            return Ok(Some(sekiro_path.replace("\\\\", "\\")));
         }
     }
 
-    None
+    Ok(None)
 }
+
 fn get_steam_install_path() -> Option<String> {
     for REGISTRY_LOCATION in STEAM_REGISTRY_LOCATIONS {
         let hkey = if REGISTRY_LOCATION.0 == "HKCU" { HKEY_CURRENT_USER } //I hate this :(
-        else if REGISTRY_LOCATION.0 == "HKLM" { HKEY_LOCAL_MACHINE } else { panic!("Wrong input string for HKEY") };
+        else if REGISTRY_LOCATION.0 == "HKLM" { HKEY_LOCAL_MACHINE } else { return None; };
 
         let reg_key = RegKey::predef(hkey)
             .open_subkey(REGISTRY_LOCATION.1);
 
         match reg_key {
-            Ok(key) => {
-                return Some(key.get_value(REGISTRY_LOCATION.2).unwrap());
-            }
+            Ok(key) => return Some(key.get_value(REGISTRY_LOCATION.2).unwrap()),
             Err(_) => {}
         }
     }
@@ -83,7 +78,10 @@ fn get_steam_install_path() -> Option<String> {
 
 pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String> {
     let string_bytes = br.read_bytes(size)?;
-    Ok(String::from_utf8(string_bytes.to_vec()).expect(&format!("Could not read fixed string of size: {size}")))
+    match String::from_utf8(string_bytes.to_vec()) {
+        Ok(result) => Ok(result),
+        Err(err) => Err(std::io::Error::new(ErrorKind::InvalidData, err.to_string()))
+    }
 }
 
 pub fn reverse_bits(byte: u8) -> Result<u8> {
@@ -93,7 +91,7 @@ pub fn reverse_bits(byte: u8) -> Result<u8> {
     while val < 8
     {
         tmp = byte & (1 << val);
-        if tmp>0
+        if tmp > 0
         {
             rev = rev | (1 << ((8 - 1) - val));
         }

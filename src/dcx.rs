@@ -1,5 +1,6 @@
 use std::fs;
-use std::io::Result;
+use std::io::{Error, ErrorKind, Result};
+use std::string::FromUtf8Error;
 use binary_reader::{BinaryReader, Endian};
 use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
@@ -66,13 +67,13 @@ impl DCX {
     const DCA_SIZE: usize = 4;
     const EGDT_SIZE: usize = 4;
 
-    pub(crate) fn is(bytes: &[u8]) -> bool {
-        let magic = String::from_utf8(bytes[..4].to_vec()).expect("Could not parse file magic!");
+    pub(crate) fn is(bytes: &[u8]) -> core::result::Result<bool, FromUtf8Error> {
+        let magic = String::from_utf8(bytes[..4].to_vec())?;
         if magic == "DCX\0" {
-            return true;
+            return Ok(true);
         }
 
-        return false;
+        return Ok(false);
     }
 
     pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>> {
@@ -82,8 +83,11 @@ impl DCX {
 
     pub fn decompress(&self) -> Result<Vec<u8>> {
         if self.header.format == "KRAK"{
-            unsafe{
-                return Ok(oodle::decompress(&self.content[..], self.header.uncompressed_size as usize)?)
+            unsafe {
+                match oodle::decompress(&self.content[..], self.header.uncompressed_size as usize) {
+                    Ok(data) => return Ok(data),
+                    Err(err) => return Err(Error::new(ErrorKind::InvalidData, err.to_string()))
+                }
             }
         }
 
