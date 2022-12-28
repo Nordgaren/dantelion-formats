@@ -7,6 +7,10 @@ use winreg;
 use winreg::enums::*;
 use winreg::{HKEY, RegKey};
 
+pub trait Validate {
+    fn validate(&self);
+}
+
 // usize :(
 pub(crate) static STEAM_REGISTRY_LOCATIONS: [(&str, &str, &str); 4] = [
     ("HKCU", r"SOFTWARE\Valve\Steam", "SteamPath"),
@@ -61,9 +65,6 @@ fn get_steam_install_path() -> String {
 
 pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String> {
     let string_bytes = br.read_bytes(size)?;
-    for b in string_bytes {
-        print!("{b:02x} ");
-    }
     Ok(String::from_utf8(string_bytes.to_vec()).expect(&format!("Could not read fixed string of size: {size}")))
 }
 

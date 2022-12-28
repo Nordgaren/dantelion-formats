@@ -4,6 +4,8 @@ use binary_reader::{BinaryReader, Endian};
 use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
 use crate::{oodle, util};
+use crate::util::Validate;
+
 #[repr(C)]
 pub struct DCX {
     pub header: DCXHeader,
@@ -149,7 +151,7 @@ impl DCX {
             header.blocks = Some(read_blocks(&mut br, header.block_count.unwrap())?);
         }
 
-        validate_dcx_header(&header);
+        header.validate();
 
         let content = read_content(&mut br, &header)?;
 
@@ -157,6 +159,49 @@ impl DCX {
             header,
             content,
         })
+    }
+}
+
+impl Validate for DCXHeader {
+
+    fn validate(&self) {
+        assert_eq!(self.magic, "DCX\0", "Magic was {}", self.magic);
+        assert!(self.unk04 == 0x10000 || self.unk04 == 0x11000, "DCXself.unk04 was {}", self.unk04);
+        assert_eq!(self.dcs_offset, 0x18, "self.dcs_offset was {}", self.dcs_offset);
+        assert_eq!(self.dcp_offset, 0x24, "self.dcp_offset was {}", self.dcp_offset);
+        assert!(self.unk10 == 0x24 || self.unk10 == 0x44, "self.unk10 was {}", self.unk10);
+        assert_eq!(self.dcs, "DCS\0", "self.dcs was {}", self.dcs);
+        assert_eq!(self.dcp, "DCP\0", "self.dcp was {}", self.dcp);
+        assert!(self.format == "DFLT" || self.format == "EDGE" || self.format == "KRAK", "self.format was {}", self.format);
+        assert_eq!(self.unk2C, 0x20, "self.unk2C was {}", self.unk2C);
+        assert!(self.unk30 == 6 || self.unk30 == 8 || self.unk30 == 9, "self.unk30 was {}", self.unk30);
+        assert_eq!(self.unk31, 0, "self.unk31 was {}", self.unk31);
+        assert_eq!(self.unk32, 0, "self.unk32 was {}", self.unk32);
+        assert_eq!(self.unk33, 0, "self.unk33 was {}", self.unk33);
+        assert!(self.unk34 == 0 || self.unk34 == 0x10000, "self.dcxOffset was {}", self.unk34);
+        assert!(self.unk38 == 0 || self.unk38 == 0xF000000, "self.dcxOffset was {}", self.unk38);
+        assert_eq!(self.unk3C, 0, "self.unk3C was {}", self.unk3C);
+        assert_eq!(self.dca, "DCA\0", "self.dca was {}", self.dca);
+
+        if self.format == "EDGE" {
+            let egdt = self.egdt.clone().unwrap();
+            assert_eq!(egdt, "EgdT", "self.egdt was {}", egdt);
+            let unk50 = self.unk50.clone().unwrap();
+            assert_eq!(unk50, 0x10100, "self.unk3C was {}", unk50);
+            let unk54 = self.unk54.clone().unwrap();
+            assert_eq!(unk54, 0x24, "self.unk54 was {}", unk54);
+            let unk58 = self.unk58.clone().unwrap();
+            assert_eq!(unk58, 0x10, "self.unk58 was {}", unk58);
+            let unk5c = self.unk5C.clone().unwrap();
+            assert_eq!(unk5c, 0x10000, "self.unk5C was {}", unk5c);
+            let unk6c = self.unk6C.clone().unwrap();
+            assert_eq!(unk6c, 0x100000, "self.unk6C was {}", unk6c);
+
+            for block in self.blocks.clone().unwrap() {
+                assert_eq!(block.unk00, 0, "block.unk00 was {}", block.unk00);
+                assert_eq!(block.unk0C, 1, "block.unk0C was {}", block.unk0C);
+            }
+        }
     }
 }
 
@@ -188,42 +233,3 @@ fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>> {
     Ok(blocks)
 }
 
-fn validate_dcx_header(header: &DCXHeader) {
-    assert_eq!(header.magic, "DCX\0", "Magic was {}", header.magic);
-    assert!(header.unk04 == 0x10000 || header.unk04 == 0x11000, "DCXHeader.unk04 was {}", header.unk04);
-    assert_eq!(header.dcs_offset, 0x18, "header.dcs_offset was {}", header.dcs_offset);
-    assert_eq!(header.dcp_offset, 0x24, "header.dcp_offset was {}", header.dcp_offset);
-    assert!(header.unk10 == 0x24 || header.unk10 == 0x44, "header.unk10 was {}", header.unk10);
-    assert_eq!(header.dcs, "DCS\0", "header.dcs was {}", header.dcs);
-    assert_eq!(header.dcp, "DCP\0", "header.dcp was {}", header.dcp);
-    assert!(header.format == "DFLT" || header.format == "EDGE" || header.format == "KRAK", "header.format was {}", header.format);
-    assert_eq!(header.unk2C, 0x20, "header.unk2C was {}", header.unk2C);
-    assert!(header.unk30 == 6 || header.unk30 == 8 || header.unk30 == 9, "header.unk30 was {}", header.unk30);
-    assert_eq!(header.unk31, 0, "header.unk31 was {}", header.unk31);
-    assert_eq!(header.unk32, 0, "header.unk32 was {}", header.unk32);
-    assert_eq!(header.unk33, 0, "header.unk33 was {}", header.unk33);
-    assert!(header.unk34 == 0 || header.unk34 == 0x10000, "header.dcxOffset was {}", header.unk34);
-    assert!(header.unk38 == 0 || header.unk38 == 0xF000000, "header.dcxOffset was {}", header.unk38);
-    assert_eq!(header.unk3C, 0, "header.unk3C was {}", header.unk3C);
-    assert_eq!(header.dca, "DCA\0", "header.dca was {}", header.dca);
-
-    if header.format == "EDGE" {
-        let egdt = header.egdt.clone().unwrap();
-        assert_eq!(egdt, "EgdT", "header.egdt was {}", egdt);
-        let unk50 = header.unk50.clone().unwrap();
-        assert_eq!(unk50, 0x10100, "header.unk3C was {}", unk50);
-        let unk54 = header.unk54.clone().unwrap();
-        assert_eq!(unk54, 0x24, "header.unk54 was {}", unk54);
-        let unk58 = header.unk58.clone().unwrap();
-        assert_eq!(unk58, 0x10, "header.unk58 was {}", unk58);
-        let unk5C = header.unk5C.clone().unwrap();
-        assert_eq!(unk5C, 0x10000, "header.unk5C was {}", unk5C);
-        let unk6C = header.unk6C.clone().unwrap();
-        assert_eq!(unk6C, 0x100000, "header.unk6C was {}", unk6C);
-
-        for block in header.blocks.clone().unwrap() {
-            assert_eq!(block.unk00, 0, "block.unk00 was {}", block.unk00);
-            assert_eq!(block.unk0C, 1, "block.unk0C was {}", block.unk0C);
-        }
-    }
-}

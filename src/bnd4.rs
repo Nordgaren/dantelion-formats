@@ -3,6 +3,7 @@ use std::io::Result;
 use binary_reader::{BinaryReader, Endian};
 use crate::dcx::DCX;
 use crate::util;
+use crate::util::Validate;
 
 #[repr(C)]
 pub struct BND4 {
@@ -89,7 +90,6 @@ impl BND4 {
         Ok(BND4::from_bytes(&file)?)
     }
 
-
     pub fn from_bytes(file: &[u8]) -> Result<BND4> {
         let mut bytes;
         if DCX::is(file) {
@@ -102,16 +102,15 @@ impl BND4 {
         let mut br = BinaryReader::from_vec(&bytes);
 
         // IDK if I should peek and check first, or just read up until BE and then do the rest of the parsing in the header declaration
-        //if util::peek_byte(&mut br, ENDIANNESS_OFFSET)? { br.set_endian(Endian::Big) } else { br.set_endian(Endian::Little) };
         let magic = util::read_fixed_string(&mut br, BND4::MAGIC_SIZE)?;
         let unk04 = br.read_u8()?;
         let unk05 = br.read_u8()?;
         let unk06 = br.read_u8()?;
         let unk07 = br.read_u8()?;
         let unk08 = br.read_u8()?;
-        let bigEndian = br.read_bool()?;
+        let big_endian = br.read_bool()?;
 
-        if bigEndian { br.set_endian(Endian::Big) } else { br.set_endian(Endian::Little) };
+        if big_endian { br.set_endian(Endian::Big) } else { br.set_endian(Endian::Little) };
 
         let mut header = BND4Header {
             magic,
@@ -120,7 +119,7 @@ impl BND4 {
             unk06,
             unk07,
             unk08,
-            big_endian: bigEndian,
+            big_endian,
             unk0a: br.read_u8()?,
             unk0b: br.read_u8()?,
             file_count: br.read_u32()?,
@@ -136,7 +135,7 @@ impl BND4 {
             buckets_offset: br.read_u64()?,
         };
 
-        verify_bnd4_header(&header);
+        header.validate();
 
         let files = read_bnd4_files(&mut br, &header)?;
 
@@ -244,7 +243,7 @@ fn read_bnd4_files(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<Fil
             data,
         };
 
-        verify_file(&file);
+        file.validate();
         files.push(file);
     }
 
@@ -265,26 +264,34 @@ fn get_file_name(br: &mut BinaryReader, offset: u32, header: &BND4Header) -> Res
     return Ok(name);
 }
 
-fn verify_bnd4_header(header: &BND4Header) {
-    assert_eq!(header.magic, "BND4", "Magic was {}", header.magic);
-    assert!(header.unk04 == 0 || header.unk04 == 1, "unk04 was {}", header.unk04);
-    assert!(header.unk05 == 0 || header.unk05 == 1, "unk05 was {}", header.unk05);
-    assert_eq!(header.unk06, 0, "unk06 was {}", header.unk06);
-    assert_eq!(header.unk07, 0, "unk07 was {}", header.unk07);
-    assert_eq!(header.unk08, 0, "unk08 was {}", header.unk08);
-    assert!(header.unk0a == 0 || header.unk0a == 1, "unk0A was {}", header.unk0a);
-    assert_eq!(header.unk0b, 0, "unk0B was {}", header.unk0b);
-    assert_eq!(header.header_size, 0x40, "header_size was {}", header.header_size);
-    assert!(header.unicode == false || header.unicode == true, "unicode was {}", header.unicode);
-    assert!(header.extended == 0 || header.extended == 4, "extended was {}", header.extended);
-    assert_eq!(header.unk33, 0, "unk33 was {}", header.unk33);
-    assert_eq!(header.unk34, 0, "unk34 was {}", header.unk34);
+impl Validate for BND4Header {
+
+    fn validate(&self) {
+        assert_eq!(self.magic, "BND4", "Magic was {}", self.magic);
+        assert!(self.unk04 == 0 || self.unk04 == 1, "unk04 was {}", self.unk04);
+        assert!(self.unk05 == 0 || self.unk05 == 1, "unk05 was {}", self.unk05);
+        assert_eq!(self.unk06, 0, "unk06 was {}", self.unk06);
+        assert_eq!(self.unk07, 0, "unk07 was {}", self.unk07);
+        assert_eq!(self.unk08, 0, "unk08 was {}", self.unk08);
+        assert!(self.unk0a == 0 || self.unk0a == 1, "unk0A was {}", self.unk0a);
+        assert_eq!(self.unk0b, 0, "unk0B was {}", self.unk0b);
+        assert_eq!(self.header_size, 0x40, "self_size was {}", self.header_size);
+        assert!(self.unicode == false || self.unicode == true, "unicode was {}", self.unicode);
+        assert!(self.extended == 0 || self.extended == 4, "extended was {}", self.extended);
+        assert_eq!(self.unk33, 0, "unk33 was {}", self.unk33);
+        assert_eq!(self.unk34, 0, "unk34 was {}", self.unk34);
+    }
 }
 
 
-fn verify_file(file: &File) {
-    assert_eq!(file.unk01, 0, "unk01 was {}", file.unk01);
-    assert_eq!(file.unk02, 0, "unk02 was {}", file.unk02);
-    assert_eq!(file.unk03, 0, "unk03 was {}", file.unk03);
-    assert_eq!(file.unk04, -1, "unk04 was {}", file.unk04);
+impl Validate for File {
+    fn validate(&self) {
+        assert_eq!(self.unk01, 0, "unk01 was {}", self.unk01);
+        assert_eq!(self.unk02, 0, "unk02 was {}", self.unk02);
+        assert_eq!(self.unk03, 0, "unk03 was {}", self.unk03);
+        assert_eq!(self.unk04, -1, "unk04 was {}", self.unk04);
+    }
 }
+
+
+

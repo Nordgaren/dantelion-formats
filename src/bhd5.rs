@@ -2,6 +2,7 @@ use std::fs;
 use binary_reader::{BinaryReader, Endian};
 use crate::{crypto_util, util};
 use std::io::Result;
+use crate::util::Validate;
 
 //Idk how necessary this is. Might need it for DS1, idk.
 pub(crate) enum GameType {
@@ -109,7 +110,7 @@ impl BHD5 {
             salt: String::new(),
         };
 
-        check_bhd5_header(&header);
+        header.validate();
 
         header.salt = util::read_fixed_string(&mut br, header.salt_len as usize)?;
         let format: BHD5Format = get_bhd5_format(&header.salt);
@@ -215,15 +216,6 @@ impl BHD5 {
     }
 }
 
-fn check_bhd5_header(header: &BHD5Header) {
-    assert_eq!(header.magic, "BHD5");
-    assert_eq!(header.unk04, u8::MAX, "header.unk04: {}", header.unk04);
-    assert!(header.unk05 == 0 || header.unk05 == 1, "header.unk05: {}", header.unk05);
-    assert_eq!(header.unk06, 0, "header.unk06: {}", header.unk06);
-    assert_eq!(header.unk07, 0, "header.unk07: {}", header.unk07);
-    assert_eq!(header.unk08, 1, "header.unk08: {}", header.unk08);
-}
-
 fn get_bhd5_format(salt: &str) -> BHD5Format {
     if salt[..3].eq("GR_") {
         return BHD5Format::EldenRing;
@@ -231,6 +223,17 @@ fn get_bhd5_format(salt: &str) -> BHD5Format {
         return BHD5Format::DarkSoulsIII;
     }
     BHD5Format::DarkSoulsII
+}
+
+impl Validate for BHD5Header {
+    fn validate(&self) {
+        assert_eq!(self.magic, "BHD5");
+        assert_eq!(self.unk04, u8::MAX, "header.unk04: {}", self.unk04);
+        assert!(self.unk05 == 0 || self.unk05 == 1, "header.unk05: {}", self.unk05);
+        assert_eq!(self.unk06, 0, "header.unk06: {}", self.unk06);
+        assert_eq!(self.unk07, 0, "header.unk07: {}", self.unk07);
+        assert_eq!(self.unk08, 1, "header.unk08: {}", self.unk08);
+    }
 }
 
 
