@@ -4,7 +4,7 @@ use libloading::os::windows::{Library, Symbol};
 use crate::oodle::CheckCRC::No;
 use crate::oodle::Decode_ThreadPhase::ThreadPhaseAll;
 use crate::oodle::FuzzSafe::Yes;
-use crate::util::get_oodle_install_path;
+use crate::util::get_oodle_path;
 
 #[repr(u32)]
 enum FuzzSafe {
@@ -45,7 +45,7 @@ ThreadPhaseAll = 3
 
 pub unsafe fn decompress(data: &[u8], uncompressed_size: usize) -> Result<Vec<u8>> {
 
-    let oodle = Library::new(get_oodle_install_path()).expect("Could now find oo2core_6_win64.dll");
+    let oodle = Library::new(get_oodle_path()).expect("Could now find oo2core_6_win64.dll");
     let oodle_lz_get_decode_buffer_size: Symbol<unsafe extern "stdcall" fn(usize, bool) -> usize> =
         oodle.get(b"OodleLZ_GetDecodeBufferSize").expect("Could not find OodleLZ_GetDecodeBufferSize in oodle dll");
 

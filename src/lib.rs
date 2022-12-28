@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn oodle_install_path() {
-        let path = util::get_oodle_install_path();
+        let path = util::get_oodle_path();
         assert!( Path::new(&path).exists())
     }
 }

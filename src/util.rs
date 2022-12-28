@@ -11,7 +11,6 @@ pub trait Validate {
     fn validate(&self);
 }
 
-// usize :(
 pub(crate) static STEAM_REGISTRY_LOCATIONS: [(&str, &str, &str); 4] = [
     ("HKCU", r"SOFTWARE\Valve\Steam", "SteamPath"),
     ("HKLM", r"SOFTWARE\Wow6432Node\Valve\Steam", "InstallPath"),
@@ -20,9 +19,29 @@ pub(crate) static STEAM_REGISTRY_LOCATIONS: [(&str, &str, &str); 4] = [
 ];
 
 // Works, for now...
-pub fn get_oodle_install_path() -> String {
-    let steam_path = get_steam_install_path();
+pub fn get_oodle_path() -> String {
+    if Path::new("oo2core_6_win64.dll").exists() {
+        return "oo2core_6_win64.dll".to_string();
+    }
 
+    let steam_path = get_steam_install_path();
+    match steam_path {
+        None => { }
+        Some(steam_path) => {
+            let oodle_path = search_steam_for_oodle(steam_path);
+            match oodle_path {
+                None => {}
+                Some(oodle_path) => {
+                    return oodle_path;
+                }
+            }
+        }
+    }
+
+    panic!("Could not find oo2core_6_win64.dll! Please place it in the working directory!")
+}
+
+fn search_steam_for_oodle(steam_path: String) -> Option<String> {
     let library_folders = BufReader::new(File::open(format!(r"{steam_path}/SteamApps/libraryfolders.vdf")).expect(&format!("Could not open steam path:\n{steam_path}")));
 
     for line in library_folders.lines().map(|x| x.expect("")).skip_while(|p| p.contains("\"path\"")) {
@@ -32,19 +51,18 @@ pub fn get_oodle_install_path() -> String {
         let steam_path = split[0].replace("\"", "");
         let elden_path = format!("{}\\steamapps\\common\\ELDEN RING\\Game\\oo2core_6_win64.dll", steam_path);
         if Path::new(&elden_path).exists() {
-            return elden_path.replace("\\\\", "\\");
+            return Some(elden_path.replace("\\\\", "\\"));
         }
 
         let sekiro_path = format!("{}\\steamapps\\common\\Sekiro\\Game\\oo2core_6_win64.dll", steam_path);
         if Path::new(&sekiro_path).exists() {
-            return sekiro_path.replace("\\\\", "\\");
+            return Some(sekiro_path.replace("\\\\", "\\"));
         }
-
     }
-    "".to_string()
-}
 
-fn get_steam_install_path() -> String {
+    None
+}
+fn get_steam_install_path() -> Option<String> {
     for REGISTRY_LOCATION in STEAM_REGISTRY_LOCATIONS {
         let hkey = if REGISTRY_LOCATION.0 == "HKCU" { HKEY_CURRENT_USER } //I hate this :(
         else if REGISTRY_LOCATION.0 == "HKLM" { HKEY_LOCAL_MACHINE } else { panic!("Wrong input string for HKEY") };
@@ -54,13 +72,13 @@ fn get_steam_install_path() -> String {
 
         match reg_key {
             Ok(key) => {
-                return key.get_value(REGISTRY_LOCATION.2).unwrap();
+                return Some(key.get_value(REGISTRY_LOCATION.2).unwrap());
             }
             Err(_) => {}
         }
     }
 
-    "".to_string()
+    None
 }
 
 pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String> {
