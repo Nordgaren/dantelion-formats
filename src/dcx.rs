@@ -1,6 +1,8 @@
 use std::fs;
-use std::io::Error;
+use std::io::Result;
 use binary_reader::{BinaryReader, Endian};
+use miniz_oxide::inflate::core::decompress;
+use miniz_oxide::inflate::decompress_to_vec;
 use crate::util;
 
 pub struct DCX {
@@ -60,51 +62,49 @@ impl DCX {
     const DCA_SIZE: usize = 4;
     const EGDT_SIZE: usize = 4;
 
-    fn read_dcx_header() -> Result<DCX, std::io::Error> {
-        todo!()
+    pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>> {
+        let dcx = DCX::from_bytes(bytes)?;
+        Ok(dcx.decompress()?)
     }
 
-    fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>, std::io::Error> {
-        let dcx = DCX::from_bytes(bytes);
-
-        todo!()
+    pub fn decompress(&self) -> Result<Vec<u8>> {
+        Ok(decompress_to_vec(&self.content[2..]).unwrap())
     }
 
-    pub fn from_path(path: &str) -> Result<DCX, Error> {
-        let file = fs::read(path)
-            .expect(&format!("Could not read file: {path}"));
+    pub fn from_path(path: &str) -> Result<DCX> {
+        let file = fs::read(path)?;
 
-        Ok(DCX::from_bytes(&file).expect(&format!("Could not parse DCX file: {path}!")))
+        Ok(DCX::from_bytes(&file)?)
     }
 
 
-    pub fn from_bytes(file: &[u8]) -> Result<DCX, Error> {
+    pub fn from_bytes(file: &[u8]) -> Result<DCX> {
         let mut br = BinaryReader::from_u8(file);
         br.set_endian(Endian::Big);
 
         let mut header = DCXHeader {
-            magic: util::read_fixed_string(&mut br, DCX::MAGIC_SIZE).expect("Could not parse DCXHeader.magic"),
-            unk04: br.read_u32().expect("Could not parse DCXHeader.unk04"),
-            dcsOffset: br.read_u32().expect("Could not parse DCXHeader.dcsOffset"),
-            dcpOffset: br.read_u32().expect("Could not parse DCXHeader.dcpOffset"),
-            unk10: br.read_u32().expect("Could not parse DCXHeader.unk10"),
-            unk14: br.read_u32().expect("Could not parse DCXHeader.unk14"),
-            dcs: util::read_fixed_string(&mut br, DCX::DCS_SIZE).expect("Could not parse DCXHeader.dcs"),
-            uncompressedSize: br.read_u32().expect("Could not parse DCXHeader.uncompressedSize"),
-            compressedSize: br.read_u32().expect("Could not parse DCXHeader.compressedSize"),
-            dcp: util::read_fixed_string(&mut br, DCX::DCP_SIZE).expect("Could not parse DCXHeader.dcp"),
-            format: util::read_fixed_string(&mut br, DCX::FORMAT_SIZE).expect("Could not parse DCXHeader.format"),
-            unk2C: br.read_u32().expect("Could not parse DCXHeader.unk2C"),
-            unk30: br.read_u8().expect("Could not parse DCXHeader.unk30"),
-            unk31: br.read_u8().expect("Could not parse DCXHeader.unk31"),
-            unk32: br.read_u8().expect("Could not parse DCXHeader.unk32"),
-            unk33: br.read_u8().expect("Could not parse DCXHeader.unk33"),
-            unk34: br.read_u32().expect("Could not parse DCXHeader.unk34"),
-            unk38: br.read_u32().expect("Could not parse DCXHeader.unk38"),
-            unk3C: br.read_u32().expect("Could not parse DCXHeader.unk3C"),
-            unk40: br.read_u32().expect("Could not parse DCXHeader.unk40"),
-            dca: util::read_fixed_string(&mut br, DCX::DCA_SIZE).expect("Could not parse DCXHeader.dca"),
-            dcaSize: br.read_u32().expect("Could not parse DCXHeader.dcaSize"),
+            magic: util::read_fixed_string(&mut br, DCX::MAGIC_SIZE)?,
+            unk04: br.read_u32()?,
+            dcsOffset: br.read_u32()?,
+            dcpOffset: br.read_u32()?,
+            unk10: br.read_u32()?,
+            unk14: br.read_u32()?,
+            dcs: util::read_fixed_string(&mut br, DCX::DCS_SIZE)?,
+            uncompressedSize: br.read_u32()?,
+            compressedSize: br.read_u32()?,
+            dcp: util::read_fixed_string(&mut br, DCX::DCP_SIZE)?,
+            format: util::read_fixed_string(&mut br, DCX::FORMAT_SIZE)?,
+            unk2C: br.read_u32()?,
+            unk30: br.read_u8()?,
+            unk31: br.read_u8()?,
+            unk32: br.read_u8()?,
+            unk33: br.read_u8()?,
+            unk34: br.read_u32()?,
+            unk38: br.read_u32()?,
+            unk3C: br.read_u32()?,
+            unk40: br.read_u32()?,
+            dca: util::read_fixed_string(&mut br, DCX::DCA_SIZE)?,
+            dcaSize: br.read_u32()?,
             egdt: None,
             unk50: None,
             unk54: None,
@@ -118,21 +118,21 @@ impl DCX {
         };
 
         if header.format == "EDGE" {
-            header.egdt = Some(util::read_fixed_string(&mut br, DCX::EGDT_SIZE).expect("Could not parse DCXHeader.egdt"));
-            header.unk50 = Some(br.read_u32().expect("Could not parse DCXHeader.unk50"));
-            header.unk54 = Some(br.read_u32().expect("Could not parse DCXHeader.unk54"));
-            header.unk58 = Some(br.read_u32().expect("Could not parse DCXHeader.unk58"));
-            header.unk5C = Some(br.read_u32().expect("Could not parse DCXHeader.unk5C"));
-            header.lastBlockUncompressedSize = Some(br.read_u32().expect("Could not parse DCXHeader.lastBlockUncompressedSize"));
-            header.egdtSize = Some(br.read_u32().expect("Could not parse DCXHeader.egdtSize"));
-            header.blockCount = Some(br.read_u32().expect("Could not parse DCXHeader.blockCount"));
-            header.unk6C = Some(br.read_u32().expect("Could not parse DCXHeader.unk6C"));
-            header.blocks = read_blocks(&mut br, header.blockCount.unwrap());
+            header.egdt = Some(util::read_fixed_string(&mut br, DCX::EGDT_SIZE)?);
+            header.unk50 = Some(br.read_u32()?);
+            header.unk54 = Some(br.read_u32()?);
+            header.unk58 = Some(br.read_u32()?);
+            header.unk5C = Some(br.read_u32()?);
+            header.lastBlockUncompressedSize = Some(br.read_u32()?);
+            header.egdtSize = Some(br.read_u32()?);
+            header.blockCount = Some(br.read_u32()?);
+            header.unk6C = Some(br.read_u32()?);
+            header.blocks = Some(read_blocks(&mut br, header.blockCount.unwrap())?);
         }
 
         validate_dcx_header(&header);
 
-        let content = read_content(&mut br, &header).expect("Could not parse DCX.content");
+        let content = read_content(&mut br, &header)?;
 
         Ok(DCX {
             header,
@@ -141,12 +141,12 @@ impl DCX {
     }
 }
 
-fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>, Error> {
+fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>> {
     // Will have to look at a file.
     // if header.format == "EDGE" {
-    //     let dataPos = br.pos;
+    //     let start = br.pos;
     //     for block in header.blocks.unwrap() {
-    //         br.pos = dataPos + block.dataOffset;
+    //         br.pos = start + block.dataOffset;
     //
     //     }
     // }
@@ -154,19 +154,19 @@ fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>, Er
     Ok(br.read_bytes(header.compressedSize as usize)?.to_vec())
 }
 
-fn read_blocks(br: &mut BinaryReader, count: u32) -> Option<Vec<Block>> {
+fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>> {
     let mut blocks = Vec::with_capacity(count as usize);
     for i in 0..count {
         let block = Block {
-            unk00: br.read_u32().expect("Could not parse Block.unk00"),
-            dataOffset: br.read_u32().expect("Could not parse Block.dataOffset"),
-            dataLength: br.read_u32().expect("Could not parse Block.dataLength"),
-            unk0C: br.read_u32().expect("Could not parse Block.unk0C"),
+            unk00: br.read_u32()?,
+            dataOffset: br.read_u32()?,
+            dataLength: br.read_u32()?,
+            unk0C: br.read_u32()?,
         };
         blocks.push(block);
     }
 
-    Some(blocks)
+    Ok(blocks)
 }
 
 fn validate_dcx_header(header: &DCXHeader) {

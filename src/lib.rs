@@ -8,16 +8,19 @@ mod util;
 
 
 const TEST_DECRYPT_PATH: &str = ".decrypted";
+const TEST_DECOMPRESSED_PATH: &str = ".decompressed";
 const TEST_BHD5_PATH: &str = "G:\\Steam\\steamapps\\common\\ELDEN RING\\Game\\Data0.bhd";
 const TEST_BND4_PATH: &str = "G:\\Steam\\steamapps\\common\\DARK SOULS III - Copy\\Game\\parts\\am_m_6200.partsbnd.dcx";
 
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::path::Path;
     use openssl::rsa::Rsa;
     use crate::bhd5::{BHD5, BHD5Format};
     use super::*;
     use crate::dcx::*;
+    use crate::bnd4::*;
 
     #[test]
     fn read_bhd5() {
@@ -43,8 +46,7 @@ mod tests {
 
     #[test]
     fn read_bnd4() {
-        let file = fs::read(TEST_BND4_PATH)
-            .expect(&format!("Could not read file: {TEST_BND4_PATH}"));
+        let bnd4 = BND4::from_path(TEST_BND4_PATH);
     }
 
     #[test]
@@ -54,11 +56,13 @@ mod tests {
 
         let dcx = DCX::from_bytes(file.as_slice()).expect("Could not get DCX from Bytes");
 
+        fs::write(&format!("{}{}",TEST_BND4_PATH, TEST_DECOMPRESSED_PATH), dcx.decompress().unwrap()).expect("Could not write decompress video");
         assert_eq!(dcx.header.format, "DFLT");
     }
 
     #[test]
     fn oodle_install_path() {
         let path = util::get_oodle_install_path();
+        assert!( Path::new(&path).exists())
     }
 }

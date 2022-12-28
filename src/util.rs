@@ -1,8 +1,8 @@
 use std::fs::File;
-use std::io::{BufRead, BufReader, Error, Read};
+use std::io::{BufRead, BufReader, Result, Read};
 use std::mem::size_of;
 use std::path::Path;
-use binary_reader::BinaryReader;
+use binary_reader::{BinaryReader, Endian};
 use winreg;
 use winreg::enums::*;
 use winreg::{HKEY, RegKey};
@@ -59,12 +59,56 @@ fn get_steam_install_path() -> String {
     "".to_string()
 }
 
-pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String, Error> {
+pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String> {
     let string_bytes = br.read_bytes(size)?;
     Ok(String::from_utf8(string_bytes.to_vec()).expect(&format!("Could not read fixed string of size: {size}")))
 }
 
-pub fn read_as_type<T>(reader: &mut impl Read) -> Result<T, Error>
+pub fn reverse_bits(byte: u8) -> Result<u8> {
+    let mut val = 0;
+    let mut tmp = 0;
+    let mut rev = 0;
+    while val < 8
+    {
+        tmp = byte & (1 << val);
+        if tmp>0
+        {
+            rev = rev | (1 << ((8 - 1) - val));
+        }
+        val = val + 1;
+    }
+    Ok(rev)
+}
+
+pub(crate) fn read_utf16_string(br: &mut BinaryReader) -> Result<String> {
+    let mut chrs = Vec::new();
+    let mut chr = br.read_u16()?;
+    chrs.push(chr);
+    while chr != 0 {
+        chr = br.read_u16()?;
+        chrs.push(chr);
+    }
+
+    Ok(String::from_utf16(chrs.as_slice()).unwrap())
+}
+
+pub fn get_utf16_name_length(br: &mut BinaryReader) -> usize {
+    let start = br.pos;
+    let mut count = 1;
+
+    while (true) {
+        let short = br.read_u16().unwrap();
+        if short == 0 {
+            break;
+        }
+        count += 1;
+    }
+
+    br.jmp(start);
+    return count;
+}
+
+pub fn read_as_type<T>(reader: &mut impl Read) -> Result<T>
     where
         T: Default,
 {
@@ -79,5 +123,13 @@ pub fn read_as_type<T>(reader: &mut impl Read) -> Result<T, Error>
         reader.read_exact(buffer)?;
     }
 
-    return Ok(result);
+    Ok(result)
+}
+
+pub fn peek_byte(br: &mut BinaryReader, position: usize) -> Result<u8> {
+    let start = br.pos;
+    br.jmp(position);
+    let byte = br.read_u8()?;
+    br.jmp(start);
+    Ok(byte)
 }
