@@ -1,7 +1,7 @@
 use std::fs;
 use binary_reader::{BinaryReader, Endian};
 use crate::{crypto_util, util};
-use std::io::Result;
+use crate::error::DantelionFormatError;
 use crate::util::Validate;
 
 //Idk how necessary this is. Might need it for DS1, idk.
@@ -42,7 +42,7 @@ pub(crate) struct BHD5Header {
     pub bucket_count: u32,
     pub buckets_offset: u32,
     pub salt_len: u32,
-    pub salt: String,
+    pub salt: Vec<u8>
 }
 
 #[repr(C)]
@@ -89,7 +89,7 @@ impl BHD5 {
     const SALTED_HASH_SIZE: usize = 32;
     const AES_KEY_SIZE: usize = 16;
 
-    pub fn from_path(path: &str) -> Result<BHD5> {
+    pub fn from_path(path: &str) -> Result<BHD5, DantelionFormatError> {
         let file = fs::read(path)?;
 
         let key = crypto_util::get_elden_ring_bhd5_key(path)?;
@@ -97,28 +97,38 @@ impl BHD5 {
         Ok(BHD5::from_bytes(&decrypted)?)
     }
 
-    pub fn from_bytes(file: &[u8]) -> Result<BHD5> {
+    pub fn from_bytes(file: &[u8]) -> Result<BHD5, DantelionFormatError> {
         let mut br = BinaryReader::from_u8(file);
         br.set_endian(Endian::Little);
 
         // Get BHD5Header
+        let magic=  util::read_fixed_string(&mut br, BHD5::MAGIC_SIZE)?;
+        let unk04=  br.read_u8()?;
+        let unk05=  br.read_u8()?;
+        let unk06=  br.read_u8()?;
+        let unk07=  br.read_u8()?;
+        let unk08=  br.read_u32()?;
+        let file_size=  br.read_u32()?;
+        let bucket_count=  br.read_u32()?;
+        let buckets_offset=  br.read_u32()?;
+        let salt_len=  br.read_u32()?;
+        let salt=  br.read_bytes(salt_len as usize)?.to_vec();
         let mut header = BHD5Header {
-            magic: util::read_fixed_string(&mut br, BHD5::MAGIC_SIZE)?,
-            unk04: br.read_u8()?,
-            unk05: br.read_u8()?,
-            unk06: br.read_u8()?,
-            unk07: br.read_u8()?,
-            unk08: br.read_u32()?,
-            file_size: br.read_u32()?,
-            bucket_count: br.read_u32()?,
-            buckets_offset: br.read_u32()?,
-            salt_len: br.read_u32()?,
-            salt: String::new(),
+            magic,
+            unk04,
+            unk05,
+            unk06,
+            unk07,
+            unk08,
+            file_size,
+            bucket_count,
+            buckets_offset,
+            salt_len,
+            salt,
         };
 
         header.validate();
 
-        header.salt = util::read_fixed_string(&mut br, header.salt_len as usize)?;
         let format: BHD5Format = get_bhd5_format(&header.salt);
 
         // Get buckets
@@ -142,7 +152,7 @@ impl BHD5 {
         })
     }
 
-    fn read_file_headers(br: &mut BinaryReader, file_header_count: u32, file_headers_offset: u32, format: BHD5Format) -> Result<Vec<FileHeader>> {
+    fn read_file_headers(br: &mut BinaryReader, file_header_count: u32, file_headers_offset: u32, format: BHD5Format) -> Result<Vec<FileHeader>, DantelionFormatError> {
         let mut headers: Vec<FileHeader> = Vec::with_capacity(file_header_count as usize);
         let start = br.pos;
         br.jmp(file_headers_offset as usize);
@@ -176,7 +186,7 @@ impl BHD5 {
         return Ok(headers);
     }
 
-    fn read_salted_hash(br: &mut BinaryReader, salted_hash_offset: u64) -> Result<SaltedHash> {
+    fn read_salted_hash(br: &mut BinaryReader, salted_hash_offset: u64) -> Result<SaltedHash, DantelionFormatError> {
         let start = br.pos;
         br.jmp(salted_hash_offset as usize);
 
@@ -194,7 +204,7 @@ impl BHD5 {
         )
     }
 
-    fn read_aes_key(br: &mut BinaryReader, aes_key_offset: u64) -> Result<AESKey> {
+    fn read_aes_key(br: &mut BinaryReader, aes_key_offset: u64) -> Result<AESKey, DantelionFormatError> {
         let start = br.pos;
         br.jmp(aes_key_offset as usize);
 
@@ -211,7 +221,7 @@ impl BHD5 {
         )
     }
 
-    fn read_ranges(br: &mut BinaryReader, range_count: u32) -> Result<Vec<Range>> {
+    fn read_ranges(br: &mut BinaryReader, range_count: u32) -> Result<Vec<Range>, DantelionFormatError> {
         let mut ranges: Vec<Range> = Vec::with_capacity(range_count as usize);
         for _ in 0..range_count {
             let begin = br.read_u64()?;
@@ -222,10 +232,10 @@ impl BHD5 {
     }
 }
 
-fn get_bhd5_format(salt: &str) -> BHD5Format {
-    if salt[..3].eq("GR_") {
+fn get_bhd5_format(salt: &[u8]) -> BHD5Format {
+    if &salt[..3] == b"GR_" {
         return BHD5Format::EldenRing;
-    } else if salt[..4].eq("FDP_") || salt[..4].eq("NTC_") {
+    } else if &salt[..4] == b"FDP_" || &salt[..4] == b"NTC_" {
         return BHD5Format::DarkSoulsIII;
     }
     BHD5Format::DarkSoulsII

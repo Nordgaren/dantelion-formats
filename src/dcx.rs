@@ -1,10 +1,11 @@
 use std::fs;
-use std::io::{Error, ErrorKind, Result};
+use std::io::{Error, ErrorKind};
 use std::string::FromUtf8Error;
 use binary_reader::{BinaryReader, Endian};
 use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
 use crate::{oodle, util};
+use crate::error::DantelionFormatError;
 use crate::util::Validate;
 
 #[repr(C)]
@@ -50,6 +51,7 @@ pub struct DCXHeader {
     pub unk6C: Option<u32>,
     pub blocks: Option<Vec<Block>>,
 }
+
 #[derive(Clone)]
 #[repr(C)]
 pub struct Block {
@@ -67,27 +69,19 @@ impl DCX {
     const DCA_SIZE: usize = 4;
     const EGDT_SIZE: usize = 4;
 
-    pub(crate) fn is(bytes: &[u8]) -> core::result::Result<bool, FromUtf8Error> {
-        let magic = String::from_utf8(bytes[..4].to_vec())?;
-        if magic == "DCX\0" {
-            return Ok(true);
-        }
-
-        return Ok(false);
+    pub(crate) fn is(bytes: &[u8]) -> bool {
+        &bytes[..4] == b"DCX\0"
     }
 
-    pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>> {
+    pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>, DantelionFormatError> {
         let dcx = DCX::from_bytes(bytes)?;
         Ok(dcx.decompress()?)
     }
 
-    pub fn decompress(&self) -> Result<Vec<u8>> {
-        if self.header.format == "KRAK"{
+    pub fn decompress(&self) -> Result<Vec<u8>, DantelionFormatError> {
+        if self.header.format == "KRAK" {
             unsafe {
-                match oodle::decompress(&self.content[..], self.header.uncompressed_size as usize) {
-                    Ok(data) => return Ok(data),
-                    Err(err) => return Err(Error::new(ErrorKind::InvalidData, err.to_string()))
-                }
+                    return Ok(oodle::decompress(&self.content[..], self.header.uncompressed_size as usize)?)
             }
         }
 
@@ -96,14 +90,14 @@ impl DCX {
         Ok(decompress_to_vec(&self.content[2..]).unwrap())
     }
 
-    pub fn from_path(path: &str) -> Result<DCX> {
+    pub fn from_path(path: &str) -> Result<DCX, DantelionFormatError> {
         let file = fs::read(path)?;
 
         Ok(DCX::from_bytes(&file)?)
     }
 
 
-    pub fn from_bytes(file: &[u8]) -> Result<DCX> {
+    pub fn from_bytes(file: &[u8]) -> Result<DCX, DantelionFormatError> {
         let mut br = BinaryReader::from_u8(file);
         br.set_endian(Endian::Big);
 
@@ -167,7 +161,6 @@ impl DCX {
 }
 
 impl Validate for DCXHeader {
-
     fn validate(&self) {
         assert_eq!(self.magic, "DCX\0", "Magic was {}", self.magic);
         assert!(self.unk04 == 0x10000 || self.unk04 == 0x11000, "DCXself.unk04 was {}", self.unk04);
@@ -209,7 +202,7 @@ impl Validate for DCXHeader {
     }
 }
 
-fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>> {
+fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>, DantelionFormatError> {
     // Will have to look at a file.
     // if header.format == "EDGE" {
     //     let start = br.pos;
@@ -222,7 +215,7 @@ fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>> {
     Ok(br.read_bytes(header.compressed_size as usize)?.to_vec())
 }
 
-fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>> {
+fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>, DantelionFormatError> {
     let mut blocks = Vec::with_capacity(count as usize);
     for i in 0..count {
         let block = Block {

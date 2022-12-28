@@ -1,10 +1,11 @@
 use std::{fs, io};
-use std::io::{Result, Read, Error, ErrorKind};
+use std::io::{Read, Error, ErrorKind};
 use std::path::Path;
 use openssl::symm::*;
 use openssl::rsa::{Padding, Rsa};
+use crate::error::DantelionFormatError;
 
-pub(crate) fn decrypt_regulation(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+pub(crate) fn decrypt_regulation(file: &[u8], key: &[u8]) -> Result<Vec<u8>, DantelionFormatError> {
     let iv = &file[..16];
     let cipher = Cipher::aes_256_cbc();
     let mut crypter = Crypter::new(cipher, Mode::Decrypt, key, Some(iv))?;
@@ -17,7 +18,7 @@ pub(crate) fn decrypt_regulation(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>, DantelionFormatError> {
 
     // Read the private key from a PEM file
     let public_key = Rsa::public_key_from_pem_pkcs1(key)?;
@@ -41,7 +42,7 @@ pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     return Ok(decrypted_data);
 }
 
-pub(crate) fn get_elden_ring_bhd5_key(path: &str) -> Result<&[u8]> {
+pub(crate) fn get_elden_ring_bhd5_key(path: &str) -> Result<&[u8], DantelionFormatError> {
     let file_name = Path::new(path)
         .file_stem().unwrap().to_str().unwrap();
     for key in ELDEN_RING_KEYS {
@@ -50,7 +51,7 @@ pub(crate) fn get_elden_ring_bhd5_key(path: &str) -> Result<&[u8]> {
         }
     }
 
-    Err(Error::new(ErrorKind::NotFound, format!("Could not find key for {}", file_name)))
+    Err(DantelionFormatError::IoError(Error::new(ErrorKind::NotFound, format!("Could not find key for {}", file_name))))
 }
 
 pub(crate) const ER_REGULATION_KEY: [u8; 0x20] = [0x99, 0xBF, 0xFC, 0x36, 0x6A, 0x6B, 0xC8, 0xC6, 0xF5,

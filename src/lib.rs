@@ -1,11 +1,12 @@
 extern crate core;
 
 mod crypto_util;
-mod bhd5;
-mod dcx;
-mod bnd4;
+pub mod bhd5;
+pub mod dcx;
+pub mod bnd4;
 mod util;
 mod oodle;
+pub mod error;
 
 
 const TEST_DECRYPT_PATH: &str = ".decrypted";
@@ -73,6 +74,15 @@ mod tests {
     }
 
     #[test]
+    fn test_dcx_is() {
+        let file = fs::read(TEST_BND4_PATH)
+            .expect(&format!("Could not read file: {TEST_BND4_PATH}"));
+        let dcx = DCX::is(file.as_slice());
+
+        assert_eq!(dcx, true);
+    }
+
+    #[test]
     fn read_oodle_compressed_bnd4() {
         let bnd4 = BND4::from_path(TEST_KRAKEN_PATH).expect("Could not read oodle compressed BND4!");
         for file  in bnd4.files {
@@ -104,7 +114,7 @@ mod tests {
 
     #[test]
     fn oodle_install_path() {
-        let path = util::get_oodle_path().expect("Did not find oodle path!").expect("Could not find oodle path!");
+        let path = util::get_oodle_path().expect("Did not find oodle path!");
         assert!(Path::new(&path).exists())
     }
 }
