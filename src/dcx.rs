@@ -193,7 +193,7 @@ fn validate_dcx_header(header: &DCXHeader) {
     assert_eq!(header.unk32, 0, "header.unk32 was {}", header.unk32);
     assert_eq!(header.unk33, 0, "header.unk33 was {}", header.unk33);
     assert!(header.unk34 == 0 || header.unk34 == 0x10000, "header.dcxOffset was {}", header.unk34);
-    assert_eq!(header.unk38, 0, "header.unk38 was {}", header.unk38);
+    assert!(header.unk38 == 0 || header.unk38 == 0xF000000, "header.dcxOffset was {}", header.unk38);
     assert_eq!(header.unk3C, 0, "header.unk3C was {}", header.unk3C);
     assert_eq!(header.dca, "DCA\0", "header.dca was {}", header.dca);
 

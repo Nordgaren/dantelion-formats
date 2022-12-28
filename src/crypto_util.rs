@@ -1,16 +1,30 @@
 use std::{fs, io};
-use std::io::{Error, Read};
+use std::io::{Result, Read};
 use std::path::Path;
+use openssl::symm::*;
 use openssl::rsa::{Padding, Rsa};
 
-pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>, Error> {
+pub(crate) fn decrypt_regulation(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
+    let iv = &file[..16];
+    let cipher = Cipher::aes_256_cbc();
+    let mut crypter = Crypter::new(cipher, Mode::Decrypt, key, Some(iv)).expect("Could not create cryptor");
+    crypter.pad(false);
+    let encypted = &file[16..];
+    let mut out = vec![0; file.len() + cipher.block_size()];
+    let count = crypter.update(encypted, &mut out)?;
+    let rest = crypter.finalize(&mut out[count..])?;
+    out.truncate(count + rest);
+    Ok(out)
+}
+
+pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 
     // Read the private key from a PEM file
     let public_key = Rsa::public_key_from_pem_pkcs1(key).expect("PEM Key");
 
     // Decrypt the data using the private key
     let key_size = public_key.size() as usize;
-    let mut len= 0;
+    let mut len = 0;
     let mut decrypted_data: Vec<u8> = vec!();
 
     while len < file.len() {

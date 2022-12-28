@@ -13,6 +13,7 @@ const TEST_DECOMPRESSED_PATH: &str = ".decompressed";
 const TEST_BHD5_PATH: &str = r"G:\Steam\steamapps\common\ELDEN RING\\Game\\Data0.bhd";
 const TEST_KRAKEN_PATH: &str = r"G:\Steam\steamapps\common\ELDEN RING\Game\parts\am_m_1600_l.partsbnd.dcx";
 const TEST_BND4_PATH: &str = r"G:\Steam\steamapps\common\DARK SOULS III - Copy\\Game\parts\am_m_6200.partsbnd.dcx";
+const ER_REGULATION_PATH: &str = r"G:\Steam\steamapps\common\ELDEN RING\Game\regulation.bin";
 
 #[cfg(test)]
 mod tests {
@@ -37,6 +38,26 @@ mod tests {
             .expect("Could not parse string");
 
         assert_eq!(magic, "BHD5")
+    }
+
+    #[test]
+    fn decrypt_regulation() {
+        let file = fs::read(ER_REGULATION_PATH)
+            .expect(&format!("Could not read file: {ER_REGULATION_PATH}"));
+
+        let decrypted = crypto_util::decrypt_regulation(file.as_slice(), &crypto_util::ER_REGULATION_KEY)
+            .expect("Unable to decrypt regulation!");
+
+        let dcx = DCX::from_bytes(&decrypted).expect("Could not parse DCX");
+        assert_eq!(dcx.header.magic, "DCX\0");
+
+        let bnd = BND4::from_bytes(&decrypted).expect("Could not parse BND4");
+
+        for file in bnd.files {
+            println!("{}", file.name.unwrap());
+        }
+
+        assert_eq!(bnd.header.magic, "BND4");
     }
 
     #[test]
