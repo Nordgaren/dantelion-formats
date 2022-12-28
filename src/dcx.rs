@@ -4,12 +4,12 @@ use binary_reader::{BinaryReader, Endian};
 use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
 use crate::util;
-
+#[repr(C)]
 pub struct DCX {
     pub header: DCXHeader,
     pub content: Vec<u8>,
 }
-
+#[repr(C)]
 pub struct DCXHeader {
     pub magic: String,
     pub unk04: u32,
@@ -47,6 +47,7 @@ pub struct DCXHeader {
     pub blocks: Option<Vec<Block>>,
 }
 #[derive(Clone)]
+#[repr(C)]
 pub struct Block {
     pub unk00: u32,
     pub dataOffset: u32,

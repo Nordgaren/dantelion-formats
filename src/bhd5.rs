@@ -21,13 +21,13 @@ pub(crate) enum BHD5Format {
     DarkSoulsIII,
     EldenRing,
 }
-
+#[repr(C)]
 pub(crate) struct BHD5 {
     pub format: BHD5Format,
     pub bhd5_header: BHD5Header,
     pub buckets: Vec<BHD5Bucket>,
 }
-
+#[repr(C)]
 pub(crate) struct BHD5Header {
     pub magic: String,
     pub unk04: u8,
@@ -41,13 +41,13 @@ pub(crate) struct BHD5Header {
     pub salt_len: u32,
     pub salt: String,
 }
-
+#[repr(C)]
 pub(crate) struct BHD5Bucket {
     pub file_header_count: u32,
     pub file_headers_offset: u32,
     pub file_headers: Vec<FileHeader>,
 }
-
+#[repr(C)]
 pub(crate) struct FileHeader {
     pub file_path_hash: u64,
     pub padded_file_size: u32,
@@ -58,19 +58,19 @@ pub(crate) struct FileHeader {
     pub salted_hash: Option<SaltedHash>,
     pub aes_key: Option<AESKey>,
 }
-
+#[repr(C)]
 pub(crate) struct SaltedHash {
     pub hash: Vec<u8>,
     pub range_count: u32,
     pub ranges: Vec<Range>,
 }
-
+#[repr(C)]
 pub(crate) struct AESKey {
     pub key: Vec<u8>,
     pub range_count: u32,
     pub ranges: Vec<Range>,
 }
-
+#[repr(C)]
 pub(crate) struct Range {
     pub begin: u64,
     pub end: u64,

@@ -3,13 +3,13 @@ use std::io::Result;
 use binary_reader::{BinaryReader, Endian};
 use crate::dcx::DCX;
 use crate::util;
-
+#[repr(C)]
 pub struct BND4 {
     pub header: BND4Header,
     pub files: Vec<File>,
     pub buckets: Option<BND4BucketHeader>,
 }
-
+#[repr(C)]
 pub struct BND4Header {
     pub magic: String,
     pub unk04: u8,
@@ -33,7 +33,7 @@ pub struct BND4Header {
     pub unk34: u32,
     pub buckets_offset: u64,
 }
-
+#[repr(C)]
 pub struct File {
     raw_flags: u8,
     unk01: u8,
@@ -49,7 +49,7 @@ pub struct File {
     name: Option<String>,
     data: Option<Vec<u8>>,
 }
-
+#[repr(C)]
 pub struct BND4BucketHeader {
     hashes_offset: u64,
     bucket_count: u32,
@@ -57,12 +57,12 @@ pub struct BND4BucketHeader {
     buckets: Vec<BND4Bucket>,
     hashes: Vec<BND4Hash>
 }
-
+#[repr(C)]
 pub struct BND4Bucket {
     count: u32,
     index: u32
 }
-
+#[repr(C)]
 pub struct BND4Hash {
     hash: u32,
     index: u32
