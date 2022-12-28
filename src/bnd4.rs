@@ -3,12 +3,14 @@ use std::io::Result;
 use binary_reader::{BinaryReader, Endian};
 use crate::dcx::DCX;
 use crate::util;
+
 #[repr(C)]
 pub struct BND4 {
     pub header: BND4Header,
     pub files: Vec<File>,
     pub buckets: Option<BND4BucketHeader>,
 }
+
 #[repr(C)]
 pub struct BND4Header {
     pub magic: String,
@@ -33,39 +35,46 @@ pub struct BND4Header {
     pub unk34: u32,
     pub buckets_offset: u64,
 }
+
 #[repr(C)]
 pub struct File {
-    raw_flags: u8,
-    unk01: u8,
-    unk02: u8,
-    unk03: u8,
-    unk04: i32,
-    compressed_size: u64,
-    uncompressed_size: Option<u64>,
-    data_offset: u32,
-    id: Option<i32>,
-    name_offset: Option<u32>,
-    zero: Option<u32>,
-    name: Option<String>,
-    data: Option<Vec<u8>>,
+    pub raw_flags: u8,
+    pub unk01: u8,
+    pub unk02: u8,
+    pub unk03: u8,
+    pub unk04: i32,
+    pub compressed_size: u64,
+    pub uncompressed_size: Option<u64>,
+    pub data_offset: u32,
+    pub id: Option<i32>,
+    pub name_offset: Option<u32>,
+    pub zero: Option<u32>,
+    pub name: Option<String>,
+    pub data: Option<Vec<u8>>,
 }
+
 #[repr(C)]
 pub struct BND4BucketHeader {
-    hashes_offset: u64,
-    bucket_count: u32,
-    buckets_header_size: u8,
-    buckets: Vec<BND4Bucket>,
-    hashes: Vec<BND4Hash>
+    pub hashes_offset: usize,
+    pub bucket_count: u32,
+    pub buckets_header_size: u8,
+    pub bucket_size: u8,
+    pub hash_size: u8,
+    pub unk0f: u8,
+    pub buckets: Vec<BND4Bucket>,
+    pub hashes: Vec<BND4Hash>,
 }
+
 #[repr(C)]
 pub struct BND4Bucket {
-    count: u32,
-    index: u32
+    pub count: u32,
+    pub index: u32,
 }
+
 #[repr(C)]
 pub struct BND4Hash {
-    hash: u32,
-    index: u32
+    pub hash: u32,
+    pub index: u32,
 }
 
 impl BND4 {
@@ -125,53 +134,60 @@ impl BND4 {
 
         let files = read_bnd4_files(&mut br, &header)?;
 
-        let buckets: Option<BND4BucketHeader> = if header.buckets_offset != 0 { Some(read_bnd4_bucket_header(&mut br, &header)?) } else {None};
+        let buckets: Option<BND4BucketHeader> = if header.buckets_offset != 0 { Some(read_bnd4_bucket_header(&mut br, &header)?) } else { None };
 
-        Ok(BND4{
+        Ok(BND4 {
             header,
             files,
             buckets,
         })
-
     }
 }
 
 fn read_bnd4_bucket_header(br: &mut BinaryReader, header: &BND4Header) -> Result<BND4BucketHeader> {
-    let hashes_offset =  br.read_u64()?;
-    let bucket_count =  br.read_u32()?;
-    let buckets_header_size =  br.read_u8()?;
-    let buckets =  read_bnd4_buckets(br, bucket_count)?;
-    let hashes =  read_bnd4_hashes(br, header);
+    let start = br.pos;
+    br.jmp(header.buckets_offset as usize);
+    let hashes_offset = br.read_u64()? as usize;
+    let bucket_count = br.read_u32()?;
+    let buckets_header_size = br.read_u8()?;
+    let bucket_size = br.read_u8()?;
+    let hash_size = br.read_u8()?;
+    let unk0f = br.read_u8()?;
+    let buckets = read_bnd4_buckets(br, bucket_count as usize)?;
+    let hashes = read_bnd4_hashes(br, header, hashes_offset)?;
     let buckets = BND4BucketHeader {
         hashes_offset,
         bucket_count,
         buckets_header_size,
-        buckets: buckets,
-        hashes: vec![],
+        bucket_size,
+        hash_size,
+        unk0f,
+        buckets,
+        hashes,
     };
 
+    br.jmp(start);
     Ok(buckets)
-
 }
 
-fn read_bnd4_hashes(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<BND4Hash>> {
+fn read_bnd4_hashes(br: &mut BinaryReader, header: &BND4Header, hashes_offset: usize) -> Result<Vec<BND4Hash>> {
     let mut hashes = Vec::with_capacity(header.file_count as usize);
     for i in 0..header.file_count {
-        hashes.push(BND4Hash{
+        hashes.push(BND4Hash {
             hash: br.read_u32()?,
-            index:  br.read_u32()?
+            index: br.read_u32()?,
         })
     }
 
     Ok(hashes)
 }
 
-fn read_bnd4_buckets(br: &mut BinaryReader, count: u32) -> Result<Vec<BND4Bucket>> {
-    let mut buckets = Vec::with_capacity(count as usize);
+fn read_bnd4_buckets(br: &mut BinaryReader, count: usize) -> Result<Vec<BND4Bucket>> {
+    let mut buckets = Vec::with_capacity(count);
     for i in 0..count {
-        buckets.push(BND4Bucket{
+        buckets.push(BND4Bucket {
             count: br.read_u32()?,
-            index:  br.read_u32()?
+            index: br.read_u32()?,
         })
     }
 
@@ -190,7 +206,7 @@ fn read_bnd4_files(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<Fil
         let compressed_size = br.read_u64()?;
         let uncompressed_size = if format & 0b00100000 != 0 { Some(br.read_u64()?) } else { None };
         let data_offset = br.read_u32()?;
-        let end = if br.endian == Endian::Big {1} else {0};
+        let end = if br.endian == Endian::Big { 1 } else { 0 };
         let mut id = if format & 0b00000010 != 0 { Some(br.read_i32()?) } else { None };
         let name_offset = if format & 0b00000100 != 0 || format & 0b00001000 != 0 { Some(br.read_u32()?) } else { None };
         let mut zero = None;

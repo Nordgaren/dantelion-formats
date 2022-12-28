@@ -3,7 +3,7 @@ use std::io::Result;
 use binary_reader::{BinaryReader, Endian};
 use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
-use crate::util;
+use crate::{oodle, util};
 #[repr(C)]
 pub struct DCX {
     pub header: DCXHeader,
@@ -13,14 +13,14 @@ pub struct DCX {
 pub struct DCXHeader {
     pub magic: String,
     pub unk04: u32,
-    pub dcsOffset: u32,
-    pub dcpOffset: u32,
+    pub dcs_offset: u32,
+    pub dcp_offset: u32,
     pub unk10: u32,
     pub unk14: u32,
     // In EDGE, size from 0x20 to end of block headers
     pub dcs: String,
-    pub uncompressedSize: u32,
-    pub compressedSize: u32,
+    pub uncompressed_size: u32,
+    pub compressed_size: u32,
     pub dcp: String,
     pub format: String,
     pub unk2C: u32,
@@ -33,16 +33,16 @@ pub struct DCXHeader {
     pub unk3C: u32,
     pub unk40: u32,
     pub dca: String,
-    pub dcaSize: u32,
+    pub dca_size: u32,
     // From before "DCA" to dca end
     pub egdt: Option<String>,
     pub unk50: Option<u32>,
     pub unk54: Option<u32>,
     pub unk58: Option<u32>,
     pub unk5C: Option<u32>,
-    pub lastBlockUncompressedSize: Option<u32>,
-    pub egdtSize: Option<u32>,
-    pub blockCount: Option<u32>,
+    pub last_block_uncompressed_size: Option<u32>,
+    pub egdt_size: Option<u32>,
+    pub block_count: Option<u32>,
     pub unk6C: Option<u32>,
     pub blocks: Option<Vec<Block>>,
 }
@@ -69,6 +69,14 @@ impl DCX {
     }
 
     pub fn decompress(&self) -> Result<Vec<u8>> {
+        if self.header.format == "KRAK"{
+            unsafe{
+                return Ok(oodle::decompress(&self.content[..], self.header.uncompressed_size as usize)?)
+            }
+        }
+
+        assert_eq!(self.content[0], 0x78);
+        assert!(self.content[1] == 0x01 || self.content[1] == 0x05E || self.content[1] == 0x9C || self.content[1] == 0xDA);
         Ok(decompress_to_vec(&self.content[2..]).unwrap())
     }
 
@@ -86,13 +94,13 @@ impl DCX {
         let mut header = DCXHeader {
             magic: util::read_fixed_string(&mut br, DCX::MAGIC_SIZE)?,
             unk04: br.read_u32()?,
-            dcsOffset: br.read_u32()?,
-            dcpOffset: br.read_u32()?,
+            dcs_offset: br.read_u32()?,
+            dcp_offset: br.read_u32()?,
             unk10: br.read_u32()?,
             unk14: br.read_u32()?,
             dcs: util::read_fixed_string(&mut br, DCX::DCS_SIZE)?,
-            uncompressedSize: br.read_u32()?,
-            compressedSize: br.read_u32()?,
+            uncompressed_size: br.read_u32()?,
+            compressed_size: br.read_u32()?,
             dcp: util::read_fixed_string(&mut br, DCX::DCP_SIZE)?,
             format: util::read_fixed_string(&mut br, DCX::FORMAT_SIZE)?,
             unk2C: br.read_u32()?,
@@ -105,15 +113,15 @@ impl DCX {
             unk3C: br.read_u32()?,
             unk40: br.read_u32()?,
             dca: util::read_fixed_string(&mut br, DCX::DCA_SIZE)?,
-            dcaSize: br.read_u32()?,
+            dca_size: br.read_u32()?,
             egdt: None,
             unk50: None,
             unk54: None,
             unk58: None,
             unk5C: None,
-            lastBlockUncompressedSize: None,
-            egdtSize: None,
-            blockCount: None,
+            last_block_uncompressed_size: None,
+            egdt_size: None,
+            block_count: None,
             unk6C: None,
             blocks: None,
         };
@@ -124,11 +132,11 @@ impl DCX {
             header.unk54 = Some(br.read_u32()?);
             header.unk58 = Some(br.read_u32()?);
             header.unk5C = Some(br.read_u32()?);
-            header.lastBlockUncompressedSize = Some(br.read_u32()?);
-            header.egdtSize = Some(br.read_u32()?);
-            header.blockCount = Some(br.read_u32()?);
+            header.last_block_uncompressed_size = Some(br.read_u32()?);
+            header.egdt_size = Some(br.read_u32()?);
+            header.block_count = Some(br.read_u32()?);
             header.unk6C = Some(br.read_u32()?);
-            header.blocks = Some(read_blocks(&mut br, header.blockCount.unwrap())?);
+            header.blocks = Some(read_blocks(&mut br, header.block_count.unwrap())?);
         }
 
         validate_dcx_header(&header);
@@ -152,7 +160,7 @@ fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>> {
     //     }
     // }
 
-    Ok(br.read_bytes(header.compressedSize as usize)?.to_vec())
+    Ok(br.read_bytes(header.compressed_size as usize)?.to_vec())
 }
 
 fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>> {
@@ -173,8 +181,8 @@ fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>> {
 fn validate_dcx_header(header: &DCXHeader) {
     assert_eq!(header.magic, "DCX\0", "Magic was {}", header.magic);
     assert!(header.unk04 == 0x10000 || header.unk04 == 0x11000, "DCXHeader.unk04 was {}", header.unk04);
-    assert_eq!(header.dcsOffset, 0x18, "header.dcsOffset was {}", header.dcsOffset);
-    assert_eq!(header.dcpOffset, 0x24, "header.dcpOffset was {}", header.dcpOffset);
+    assert_eq!(header.dcs_offset, 0x18, "header.dcs_offset was {}", header.dcs_offset);
+    assert_eq!(header.dcp_offset, 0x24, "header.dcp_offset was {}", header.dcp_offset);
     assert!(header.unk10 == 0x24 || header.unk10 == 0x44, "header.unk10 was {}", header.unk10);
     assert_eq!(header.dcs, "DCS\0", "header.dcs was {}", header.dcs);
     assert_eq!(header.dcp, "DCP\0", "header.dcp was {}", header.dcp);
