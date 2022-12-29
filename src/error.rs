@@ -1,42 +1,33 @@
+use std::fmt::{Debug, Display, Formatter};
 use std::string::{FromUtf16Error, FromUtf8Error};
+use miniz_oxide::inflate::DecompressError;
 use openssl::error::ErrorStack;
 use crate::error::DantelionFormatsError::*;
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum DantelionFormatsError {
-    IoError(std::io::Error),
-    LibLoading(libloading::Error),
-    Utf8Error(FromUtf8Error),
-    Utf16Error(FromUtf16Error),
-    OpenSSLErrorStack(ErrorStack),
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+    #[error(transparent)]
+    LibLoading(#[from] libloading::Error),
+    #[error(transparent)]
+    Utf8Error(#[from] FromUtf8Error),
+    #[error(transparent)]
+    Utf16Error(#[from] FromUtf16Error),
+    #[error(transparent)]
+    OpenSSLErrorStack(#[from] ErrorStack),
+    DecompressionError(DecompressError),
 }
 
-impl From<std::io::Error> for DantelionFormatsError {
-    fn from(e: std::io::Error) -> Self {
-        IoError(e)
+impl From<DecompressError> for DantelionFormatsError {
+    fn from(e: DecompressError) -> Self {
+        DecompressionError(e)
     }
 }
 
-impl From<libloading::Error> for DantelionFormatsError {
-    fn from(e: libloading::Error) -> Self {
-        LibLoading(e)
-    }
-}
-
-impl From<FromUtf8Error> for DantelionFormatsError {
-    fn from(e: FromUtf8Error) -> Self {
-        Utf8Error(e)
-    }
-}
-
-impl From<FromUtf16Error> for DantelionFormatsError {
-    fn from(e: FromUtf16Error) -> Self {
-        Utf16Error(e)
-    }
-}
-
-impl From<ErrorStack> for DantelionFormatsError {
-    fn from(e: ErrorStack) -> Self {
-        OpenSSLErrorStack(e)
+impl Display for DantelionFormatsError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

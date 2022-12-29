@@ -89,7 +89,7 @@ impl BND4 {
     pub fn from_path(path: &str) -> Result<BND4, DantelionFormatsError> {
         let file = fs::read(path)?;
 
-        Ok(BND4::from_bytes(&file)?)
+        BND4::from_bytes(&file)
     }
 
     pub fn from_bytes(file: &[u8]) -> Result<BND4, DantelionFormatsError> {

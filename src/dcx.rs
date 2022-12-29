@@ -75,7 +75,7 @@ impl DCX {
 
     pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>, DantelionFormatsError> {
         let dcx = DCX::from_bytes(bytes)?;
-        Ok(dcx.decompress()?)
+        dcx.decompress()
     }
 
     pub fn decompress(&self) -> Result<Vec<u8>, DantelionFormatsError> {
@@ -87,13 +87,13 @@ impl DCX {
 
         assert_eq!(self.content[0], 0x78);
         assert!(self.content[1] == 0x01 || self.content[1] == 0x05E || self.content[1] == 0x9C || self.content[1] == 0xDA);
-        Ok(decompress_to_vec(&self.content[2..]).unwrap())
+        Ok(decompress_to_vec(&self.content[2..])?)
     }
 
     pub fn from_path(path: &str) -> Result<DCX, DantelionFormatsError> {
         let file = fs::read(path)?;
 
-        Ok(DCX::from_bytes(&file)?)
+        DCX::from_bytes(&file)
     }
 
 

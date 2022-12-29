@@ -105,10 +105,10 @@ pub fn reverse_bits(byte: u8) -> u8 {
 
 pub(crate) fn read_utf16_string(br: &mut BinaryReader) -> Result<String, DantelionFormatsError> {
     let mut chrs = Vec::new();
-    let mut chr = br.read_u16()?;
-    chrs.push(chr);
-    while chr != 0 {
-        chr = br.read_u16()?;
+    while let chr = br.read_u16()? {
+        if chr == 0 {
+            break;
+        }
         chrs.push(chr);
     }
 

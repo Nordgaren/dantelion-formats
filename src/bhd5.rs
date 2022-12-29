@@ -94,15 +94,40 @@ impl BHD5 {
 
         let key = crypto_util::get_elden_ring_bhd5_key(path)?;
         let decrypted = crypto_util::decrypt_bhd5_file(file.as_slice(), key)?;
-        Ok(BHD5::from_bytes(&decrypted)?)
+        BHD5::from_bytes(&decrypted)
     }
 
     pub fn from_bytes(file: &[u8]) -> Result<BHD5, DantelionFormatsError> {
         let mut br = BinaryReader::from_u8(file);
         br.set_endian(Endian::Little);
+        println!("{:02x}", file.len());
+        let header = read_bhd5_header(&mut br)?;
 
-        // Get BHD5Header
-        let magic=  util::read_fixed_string(&mut br, BHD5::MAGIC_SIZE)?;
+        let format = get_bhd5_format(&header.salt);
+
+        let mut buckets: Vec<BHD5Bucket> = Vec::with_capacity(header.bucket_count as usize);
+
+        for _ in 0..header.bucket_count {
+            let file_header_count = br.read_u32()?;
+            let file_headers_offset = br.read_u32()?;
+            let file_headers = BHD5::read_file_headers(&mut br, file_header_count, file_headers_offset, format)?;
+            buckets.push(BHD5Bucket {
+                file_header_count,
+                file_headers_offset,
+                file_headers,
+            });
+        }
+
+        Ok(BHD5 {
+            format,
+            bhd5_header: header,
+            buckets,
+        })
+    }
+
+    fn read_bhd5_header(br: &mut BinaryReader) -> Result<BHD5Header, DantelionFormatsError> {
+
+        let magic=  util::read_fixed_string(br, BHD5::MAGIC_SIZE)?;
         let unk04=  br.read_u8()?;
         let unk05=  br.read_u8()?;
         let unk06=  br.read_u8()?;
@@ -129,27 +154,16 @@ impl BHD5 {
 
         header.validate();
 
-        let format: BHD5Format = get_bhd5_format(&header.salt);
+        Ok(header)
+    }
 
-        // Get buckets
-        let mut buckets: Vec<BHD5Bucket> = Vec::with_capacity(header.bucket_count as usize);
-
-        for _ in 0..header.bucket_count {
-            let file_header_count = br.read_u32()?;
-            let file_headers_offset = br.read_u32()?;
-            let file_headers = BHD5::read_file_headers(&mut br, file_header_count, file_headers_offset, format)?;
-            buckets.push(BHD5Bucket {
-                file_header_count,
-                file_headers_offset,
-                file_headers,
-            });
+    fn get_bhd5_format(salt: &[u8]) -> BHD5Format {
+        if &salt[..3] == b"GR_" {
+            return BHD5Format::EldenRing;
+        } else if &salt[..4] == b"FDP_" || &salt[..4] == b"NTC_" {
+            return BHD5Format::DarkSoulsIII;
         }
-
-        Ok(BHD5 {
-            format,
-            bhd5_header: header,
-            buckets,
-        })
+        BHD5Format::DarkSoulsII
     }
 
     fn read_file_headers(br: &mut BinaryReader, file_header_count: u32, file_headers_offset: u32, format: BHD5Format) -> Result<Vec<FileHeader>, DantelionFormatsError> {
@@ -232,23 +246,17 @@ impl BHD5 {
     }
 }
 
-fn get_bhd5_format(salt: &[u8]) -> BHD5Format {
-    if &salt[..3] == b"GR_" {
-        return BHD5Format::EldenRing;
-    } else if &salt[..4] == b"FDP_" || &salt[..4] == b"NTC_" {
-        return BHD5Format::DarkSoulsIII;
-    }
-    BHD5Format::DarkSoulsII
-}
 
 impl Validate for BHD5Header {
-    fn validate(&self) {
+    fn validate(&self) -> Result<(), DantelionFormatsError> {
         assert_eq!(self.magic, "BHD5");
         assert_eq!(self.unk04, u8::MAX, "header.unk04: {}", self.unk04);
         assert!(self.unk05 == 0 || self.unk05 == 1, "header.unk05: {}", self.unk05);
         assert_eq!(self.unk06, 0, "header.unk06: {}", self.unk06);
         assert_eq!(self.unk07, 0, "header.unk07: {}", self.unk07);
         assert_eq!(self.unk08, 1, "header.unk08: {}", self.unk08);
+
+        Ok(())
     }
 }
 
