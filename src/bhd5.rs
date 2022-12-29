@@ -1,7 +1,7 @@
 use std::fs;
 use binary_reader::{BinaryReader, Endian};
 use crate::{crypto_util, util};
-use crate::error::DantelionFormatError;
+use crate::error::DantelionFormatsError;
 use crate::util::Validate;
 
 //Idk how necessary this is. Might need it for DS1, idk.
@@ -89,7 +89,7 @@ impl BHD5 {
     const SALTED_HASH_SIZE: usize = 32;
     const AES_KEY_SIZE: usize = 16;
 
-    pub fn from_path(path: &str) -> Result<BHD5, DantelionFormatError> {
+    pub fn from_path(path: &str) -> Result<BHD5, DantelionFormatsError> {
         let file = fs::read(path)?;
 
         let key = crypto_util::get_elden_ring_bhd5_key(path)?;
@@ -97,7 +97,7 @@ impl BHD5 {
         Ok(BHD5::from_bytes(&decrypted)?)
     }
 
-    pub fn from_bytes(file: &[u8]) -> Result<BHD5, DantelionFormatError> {
+    pub fn from_bytes(file: &[u8]) -> Result<BHD5, DantelionFormatsError> {
         let mut br = BinaryReader::from_u8(file);
         br.set_endian(Endian::Little);
 
@@ -152,7 +152,7 @@ impl BHD5 {
         })
     }
 
-    fn read_file_headers(br: &mut BinaryReader, file_header_count: u32, file_headers_offset: u32, format: BHD5Format) -> Result<Vec<FileHeader>, DantelionFormatError> {
+    fn read_file_headers(br: &mut BinaryReader, file_header_count: u32, file_headers_offset: u32, format: BHD5Format) -> Result<Vec<FileHeader>, DantelionFormatsError> {
         let mut headers: Vec<FileHeader> = Vec::with_capacity(file_header_count as usize);
         let start = br.pos;
         br.jmp(file_headers_offset as usize);
@@ -186,7 +186,7 @@ impl BHD5 {
         return Ok(headers);
     }
 
-    fn read_salted_hash(br: &mut BinaryReader, salted_hash_offset: u64) -> Result<SaltedHash, DantelionFormatError> {
+    fn read_salted_hash(br: &mut BinaryReader, salted_hash_offset: u64) -> Result<SaltedHash, DantelionFormatsError> {
         let start = br.pos;
         br.jmp(salted_hash_offset as usize);
 
@@ -204,7 +204,7 @@ impl BHD5 {
         )
     }
 
-    fn read_aes_key(br: &mut BinaryReader, aes_key_offset: u64) -> Result<AESKey, DantelionFormatError> {
+    fn read_aes_key(br: &mut BinaryReader, aes_key_offset: u64) -> Result<AESKey, DantelionFormatsError> {
         let start = br.pos;
         br.jmp(aes_key_offset as usize);
 
@@ -221,7 +221,7 @@ impl BHD5 {
         )
     }
 
-    fn read_ranges(br: &mut BinaryReader, range_count: u32) -> Result<Vec<Range>, DantelionFormatError> {
+    fn read_ranges(br: &mut BinaryReader, range_count: u32) -> Result<Vec<Range>, DantelionFormatsError> {
         let mut ranges: Vec<Range> = Vec::with_capacity(range_count as usize);
         for _ in 0..range_count {
             let begin = br.read_u64()?;

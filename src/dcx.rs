@@ -5,7 +5,7 @@ use binary_reader::{BinaryReader, Endian};
 use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
 use crate::{oodle, util};
-use crate::error::DantelionFormatError;
+use crate::error::DantelionFormatsError;
 use crate::util::Validate;
 
 #[repr(C)]
@@ -73,12 +73,12 @@ impl DCX {
         &bytes[..4] == b"DCX\0"
     }
 
-    pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>, DantelionFormatError> {
+    pub fn decompress_bytes(bytes: &[u8]) -> Result<Vec<u8>, DantelionFormatsError> {
         let dcx = DCX::from_bytes(bytes)?;
         Ok(dcx.decompress()?)
     }
 
-    pub fn decompress(&self) -> Result<Vec<u8>, DantelionFormatError> {
+    pub fn decompress(&self) -> Result<Vec<u8>, DantelionFormatsError> {
         if self.header.format == "KRAK" {
             unsafe {
                     return Ok(oodle::decompress(&self.content[..], self.header.uncompressed_size as usize)?)
@@ -90,14 +90,14 @@ impl DCX {
         Ok(decompress_to_vec(&self.content[2..]).unwrap())
     }
 
-    pub fn from_path(path: &str) -> Result<DCX, DantelionFormatError> {
+    pub fn from_path(path: &str) -> Result<DCX, DantelionFormatsError> {
         let file = fs::read(path)?;
 
         Ok(DCX::from_bytes(&file)?)
     }
 
 
-    pub fn from_bytes(file: &[u8]) -> Result<DCX, DantelionFormatError> {
+    pub fn from_bytes(file: &[u8]) -> Result<DCX, DantelionFormatsError> {
         let mut br = BinaryReader::from_u8(file);
         br.set_endian(Endian::Big);
 
@@ -202,7 +202,7 @@ impl Validate for DCXHeader {
     }
 }
 
-fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>, DantelionFormatError> {
+fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>, DantelionFormatsError> {
     // Will have to look at a file.
     // if header.format == "EDGE" {
     //     let start = br.pos;
@@ -215,7 +215,7 @@ fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>, Da
     Ok(br.read_bytes(header.compressed_size as usize)?.to_vec())
 }
 
-fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>, DantelionFormatError> {
+fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>, DantelionFormatsError> {
     let mut blocks = Vec::with_capacity(count as usize);
     for i in 0..count {
         let block = Block {

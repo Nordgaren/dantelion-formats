@@ -8,7 +8,7 @@ use binary_reader::{BinaryReader, Endian};
 use winreg;
 use winreg::enums::*;
 use winreg::{HKEY, RegKey};
-use crate::error::DantelionFormatError;
+use crate::error::DantelionFormatsError;
 
 pub trait Validate {
     fn validate(&self);
@@ -81,7 +81,7 @@ fn get_steam_install_path() -> Option<String> {
     None
 }
 
-pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String, DantelionFormatError> {
+pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String, DantelionFormatsError> {
     let string_bytes = br.read_bytes(size)?;
     Ok(String::from_utf8(string_bytes.to_vec())?)
 }
@@ -103,7 +103,7 @@ pub fn reverse_bits(byte: u8) -> u8 {
     return rev;
 }
 
-pub(crate) fn read_utf16_string(br: &mut BinaryReader) -> Result<String, DantelionFormatError> {
+pub(crate) fn read_utf16_string(br: &mut BinaryReader) -> Result<String, DantelionFormatsError> {
     let mut chrs = Vec::new();
     let mut chr = br.read_u16()?;
     chrs.push(chr);
@@ -149,7 +149,7 @@ pub fn get_utf16_name_length(br: &mut BinaryReader) -> usize {
 //     Ok(result)
 // }
 
-pub fn peek_byte(br: &mut BinaryReader, position: usize) -> Result<u8, DantelionFormatError> {
+pub fn peek_byte(br: &mut BinaryReader, position: usize) -> Result<u8, DantelionFormatsError> {
     let start = br.pos;
     br.jmp(position);
     let byte = br.read_u8()?;

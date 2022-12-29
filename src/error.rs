@@ -1,9 +1,9 @@
 use std::string::{FromUtf16Error, FromUtf8Error};
 use openssl::error::ErrorStack;
-use crate::error::DantelionFormatError::*;
+use crate::error::DantelionFormatsError::*;
 
 #[derive(Debug)]
-pub enum DantelionFormatError {
+pub enum DantelionFormatsError {
     IoError(std::io::Error),
     LibLoading(libloading::Error),
     Utf8Error(FromUtf8Error),
@@ -11,31 +11,31 @@ pub enum DantelionFormatError {
     OpenSSLErrorStack(ErrorStack),
 }
 
-impl From<std::io::Error> for DantelionFormatError {
+impl From<std::io::Error> for DantelionFormatsError {
     fn from(e: std::io::Error) -> Self {
         IoError(e)
     }
 }
 
-impl From<libloading::Error> for DantelionFormatError {
+impl From<libloading::Error> for DantelionFormatsError {
     fn from(e: libloading::Error) -> Self {
         LibLoading(e)
     }
 }
 
-impl From<FromUtf8Error> for DantelionFormatError {
+impl From<FromUtf8Error> for DantelionFormatsError {
     fn from(e: FromUtf8Error) -> Self {
         Utf8Error(e)
     }
 }
 
-impl From<FromUtf16Error> for DantelionFormatError {
+impl From<FromUtf16Error> for DantelionFormatsError {
     fn from(e: FromUtf16Error) -> Self {
         Utf16Error(e)
     }
 }
 
-impl From<ErrorStack> for DantelionFormatError {
+impl From<ErrorStack> for DantelionFormatsError {
     fn from(e: ErrorStack) -> Self {
         OpenSSLErrorStack(e)
     }

@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::io::{Error, ErrorKind};
 use libloading::os::windows::{Library, Symbol};
-use crate::error::DantelionFormatError;
+use crate::error::DantelionFormatsError;
 use crate::oodle::CheckCRC::No;
 use crate::oodle::Decode_ThreadPhase::ThreadPhaseAll;
 use crate::oodle::FuzzSafe::Yes;
@@ -44,11 +44,11 @@ ThreadPhaseAll = 3
 //     fn OodleLZ_GetDecodeBufferSize(raw_size: usize, corruption_possible: bool) -> usize;
 // }
 
-pub unsafe fn decompress(data: &[u8], uncompressed_size: usize) -> Result<Vec<u8>, DantelionFormatError> {
+pub unsafe fn decompress(data: &[u8], uncompressed_size: usize) -> Result<Vec<u8>, DantelionFormatsError> {
 
     let oodle_path = match get_oodle_path() {
         None => return
-            Err(DantelionFormatError::IoError(
+            Err(DantelionFormatsError::IoError(
                 Error::new(
                     ErrorKind::NotFound,
                     "Oodle path not found. Please move a copy of oo2core_6_win64.dll into the working directory")

@@ -3,7 +3,7 @@ use std::io::{Error, ErrorKind};
 use std::string::FromUtf8Error;
 use binary_reader::{BinaryReader, Endian};
 use crate::dcx::DCX;
-use crate::error::DantelionFormatError;
+use crate::error::DantelionFormatsError;
 use crate::util;
 use crate::util::Validate;
 
@@ -86,13 +86,13 @@ impl BND4 {
     const ENDIANNESS_OFFSET: usize = 9;
     const AES_KEY_SIZE: usize = 16;
 
-    pub fn from_path(path: &str) -> Result<BND4, DantelionFormatError> {
+    pub fn from_path(path: &str) -> Result<BND4, DantelionFormatsError> {
         let file = fs::read(path)?;
 
         Ok(BND4::from_bytes(&file)?)
     }
 
-    pub fn from_bytes(file: &[u8]) -> Result<BND4, DantelionFormatError> {
+    pub fn from_bytes(file: &[u8]) -> Result<BND4, DantelionFormatsError> {
         let mut bytes;
 
 
@@ -152,7 +152,7 @@ impl BND4 {
     }
 }
 
-fn read_bnd4_bucket_header(br: &mut BinaryReader, header: &BND4Header) -> Result<BND4BucketHeader, DantelionFormatError> {
+fn read_bnd4_bucket_header(br: &mut BinaryReader, header: &BND4Header) -> Result<BND4BucketHeader, DantelionFormatsError> {
     let start = br.pos;
     br.jmp(header.buckets_offset as usize);
     let hashes_offset = br.read_u64()? as usize;
@@ -178,7 +178,7 @@ fn read_bnd4_bucket_header(br: &mut BinaryReader, header: &BND4Header) -> Result
     Ok(buckets)
 }
 
-fn read_bnd4_hashes(br: &mut BinaryReader, header: &BND4Header, hashes_offset: usize) -> Result<Vec<BND4Hash>, DantelionFormatError> {
+fn read_bnd4_hashes(br: &mut BinaryReader, header: &BND4Header, hashes_offset: usize) -> Result<Vec<BND4Hash>, DantelionFormatsError> {
     let mut hashes = Vec::with_capacity(header.file_count as usize);
     for i in 0..header.file_count {
         hashes.push(BND4Hash {
@@ -190,7 +190,7 @@ fn read_bnd4_hashes(br: &mut BinaryReader, header: &BND4Header, hashes_offset: u
     Ok(hashes)
 }
 
-fn read_bnd4_buckets(br: &mut BinaryReader, count: usize) -> Result<Vec<BND4Bucket>, DantelionFormatError> {
+fn read_bnd4_buckets(br: &mut BinaryReader, count: usize) -> Result<Vec<BND4Bucket>, DantelionFormatsError> {
     let mut buckets = Vec::with_capacity(count);
     for i in 0..count {
         buckets.push(BND4Bucket {
@@ -202,7 +202,7 @@ fn read_bnd4_buckets(br: &mut BinaryReader, count: usize) -> Result<Vec<BND4Buck
     Ok(buckets)
 }
 
-fn read_bnd4_files(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<File>, DantelionFormatError> {
+fn read_bnd4_files(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<File>, DantelionFormatsError> {
     let format = if header.big_endian { header.raw_format } else { util::reverse_bits(header.raw_format) };
     let mut files: Vec<File> = Vec::with_capacity(header.file_count as usize);
     for i in 0..header.file_count {
@@ -252,7 +252,7 @@ fn read_bnd4_files(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<Fil
     Ok(files)
 }
 
-fn get_file_name(br: &mut BinaryReader, offset: u32, header: &BND4Header) -> Result<String, DantelionFormatError> {
+fn get_file_name(br: &mut BinaryReader, offset: u32, header: &BND4Header) -> Result<String, DantelionFormatsError> {
     let start = br.pos;
     br.jmp(offset as usize);
     let name: String;
