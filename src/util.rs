@@ -119,7 +119,7 @@ pub fn get_utf16_name_length(br: &mut BinaryReader) -> usize {
     let start = br.pos;
     let mut count = 1;
 
-    while (true) {
+    loop {
         let short = br.read_u16().unwrap();
         if short == 0 {
             break;
