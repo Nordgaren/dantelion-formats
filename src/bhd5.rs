@@ -92,7 +92,6 @@ impl BHD5 {
 
     pub fn from_path(path: &str) -> Result<BHD5, DantelionFormatsError> {
         let file = fs::read(path)?;
-
         let key = crypto_util::get_elden_ring_bhd5_key(path)?;
         let decrypted = crypto_util::decrypt_bhd5_file(file.as_slice(), key)?;
         BHD5::from_bytes(&decrypted)

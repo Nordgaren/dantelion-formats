@@ -71,6 +71,10 @@ mod tests {
     #[test]
     fn read_bnd4() {
         let bnd4 = BND4::from_path(TEST_BND4_PATH).unwrap();
+        println!("bnd4 read. Output:");
+        for file  in bnd4.files {
+            println!("{}", file.name.unwrap());
+        }
     }
 
     #[test]

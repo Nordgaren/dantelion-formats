@@ -83,7 +83,7 @@ pub struct BND4Hash {
 impl BND4 {
     const MAGIC_SIZE: usize = 4;
     const VERSION_SIZE: usize = 8;
-    const ENDIANNESS_OFFSET: usize = 9;
+    const ENDIANNESS_OFFSET: u64 = 9;
 
     pub fn from_path(path: &str) -> Result<BND4, DantelionFormatsError> {
         let file = fs::read(path)?;
@@ -248,16 +248,12 @@ impl BND4 {
     }
 
     fn get_file_name(c: &mut Cursor<&[u8]>, offset: u64, header: &BND4Header) -> Result<String, DantelionFormatsError> {
-        let start = c.position();
-        c.set_position(offset);
-        let name: String;
-        if header.unicode {
-            name = c.read_wcstr()?;
+        let name= if header.unicode {
+            c.peek_wcstr(offset)?
         } else {
-            name = c.read_cstr()?;
-        }
+            c.peek_cstr(offset)?
+        };
 
-        c.set_position(start);
         return Ok(name);
     }
 }
