@@ -1,7 +1,8 @@
 use std::fs;
-use std::io::{Error, ErrorKind};
+use std::io::{Cursor, Error, ErrorKind};
 use std::string::FromUtf8Error;
-use binary_reader::{BinaryReader, Endian};
+use binary_interpreter::binary_reader::BinaryReader;
+use byteorder::{BE, ReadBytesExt};
 use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
 use crate::{oodle, util};
@@ -40,25 +41,30 @@ pub struct DCXHeader {
     pub dca: String,
     pub dca_size: u32,
     // From before "DCA" to dca end
-    pub egdt: Option<String>,
-    pub unk50: Option<u32>,
-    pub unk54: Option<u32>,
-    pub unk58: Option<u32>,
-    pub unk5C: Option<u32>,
-    pub last_block_uncompressed_size: Option<u32>,
-    pub egdt_size: Option<u32>,
-    pub block_count: Option<u32>,
-    pub unk6C: Option<u32>,
-    pub blocks: Option<Vec<Block>>,
+    pub egdt: Option<EGDTHeader>
+}
+#[derive(Clone)]
+#[repr(C)]
+pub struct EGDTHeader {
+    pub egdt: String,
+    pub unk50: u32,
+    pub unk54: u32,
+    pub unk58: u32,
+    pub unk5c: u32,
+    pub last_block_uncompressed_size: u32,
+    pub egdt_size: u32,
+    pub block_count: u32,
+    pub unk6c: u32,
+    pub blocks: Vec<Block>,
 }
 
 #[derive(Clone)]
 #[repr(C)]
 pub struct Block {
     pub unk00: u32,
-    pub dataOffset: u32,
-    pub dataLength: u32,
-    pub unk0C: u32,
+    pub data_offset: u32,
+    pub data_length: u32,
+    pub unk0c: u32,
 }
 
 impl DCX {
@@ -98,67 +104,116 @@ impl DCX {
 
 
     pub fn from_bytes(file: &[u8]) -> Result<DCX, DantelionFormatsError> {
-        let mut br = BinaryReader::from_u8(file);
-        br.set_endian(Endian::Big);
+        let mut c = Cursor::new(file);
 
-        let mut header = DCXHeader {
-            magic: util::read_fixed_string(&mut br, DCX::MAGIC_SIZE)?,
-            unk04: br.read_u32()?,
-            dcs_offset: br.read_u32()?,
-            dcp_offset: br.read_u32()?,
-            unk10: br.read_u32()?,
-            unk14: br.read_u32()?,
-            dcs: util::read_fixed_string(&mut br, DCX::DCS_SIZE)?,
-            uncompressed_size: br.read_u32()?,
-            compressed_size: br.read_u32()?,
-            dcp: util::read_fixed_string(&mut br, DCX::DCP_SIZE)?,
-            format: util::read_fixed_string(&mut br, DCX::FORMAT_SIZE)?,
-            unk2C: br.read_u32()?,
-            unk30: br.read_u8()?,
-            unk31: br.read_u8()?,
-            unk32: br.read_u8()?,
-            unk33: br.read_u8()?,
-            unk34: br.read_u32()?,
-            unk38: br.read_u32()?,
-            unk3C: br.read_u32()?,
-            unk40: br.read_u32()?,
-            dca: util::read_fixed_string(&mut br, DCX::DCA_SIZE)?,
-            dca_size: br.read_u32()?,
-            egdt: None,
-            unk50: None,
-            unk54: None,
-            unk58: None,
-            unk5C: None,
-            last_block_uncompressed_size: None,
-            egdt_size: None,
-            block_count: None,
-            unk6C: None,
-            blocks: None,
-        };
+        let mut header = DCX::read_dcx_header(&mut c)?;
 
-        if header.format == "EDGE" {
-            header.egdt = Some(util::read_fixed_string(&mut br, DCX::EGDT_SIZE)?);
-            header.unk50 = Some(br.read_u32()?);
-            header.unk54 = Some(br.read_u32()?);
-            header.unk58 = Some(br.read_u32()?);
-            header.unk5C = Some(br.read_u32()?);
-            header.last_block_uncompressed_size = Some(br.read_u32()?);
-            header.egdt_size = Some(br.read_u32()?);
-            header.block_count = Some(br.read_u32()?);
-            header.unk6C = Some(br.read_u32()?);
-            header.blocks = Some(read_blocks(&mut br, header.block_count.unwrap())?);
-        }
-
-        header.validate();
-
-        let content = read_content(&mut br, &header)?;
+        let content = DCX::read_content(&mut c, &header)?;
 
         Ok(DCX {
             header,
             content,
         })
     }
+
+    fn read_dcx_header(c: &mut Cursor<&[u8]>) -> Result<DCXHeader, DantelionFormatsError>  {
+
+        let mut header = DCXHeader {
+            magic: c.read_fixed_cstr( DCX::MAGIC_SIZE)?,
+            unk04: c.read_u32::<BE>()?,
+            dcs_offset: c.read_u32::<BE>()?,
+            dcp_offset: c.read_u32::<BE>()?,
+            unk10: c.read_u32::<BE>()?,
+            unk14: c.read_u32::<BE>()?,
+            dcs: c.read_fixed_cstr(DCX::DCS_SIZE)?,
+            uncompressed_size: c.read_u32::<BE>()?,
+            compressed_size: c.read_u32::<BE>()?,
+            dcp: c.read_fixed_cstr(DCX::DCP_SIZE)?,
+            format: c.read_fixed_cstr(DCX::FORMAT_SIZE)?,
+            unk2C: c.read_u32::<BE>()?,
+            unk30: c.read_u8()?,
+            unk31: c.read_u8()?,
+            unk32: c.read_u8()?,
+            unk33: c.read_u8()?,
+            unk34: c.read_u32::<BE>()?,
+            unk38: c.read_u32::<BE>()?,
+            unk3C: c.read_u32::<BE>()?,
+            unk40: c.read_u32::<BE>()?,
+            dca: c.read_fixed_cstr(DCX::DCA_SIZE)?,
+            dca_size: c.read_u32::<BE>()?,
+            egdt: None,
+
+        };
+
+        if header.format == "EDGE" {
+            header.egdt = Some(DCX::read_egdt_header(c)?);
+        }
+
+        header.validate();
+
+        Ok(header)
+    }
+
+    fn read_egdt_header(c: &mut Cursor<&[u8]>) -> Result<EGDTHeader, DantelionFormatsError> {
+        let egdt =  c.read_fixed_cstr(DCX::EGDT_SIZE)?;
+        let unk50 =  c.read_u32::<BE>()?;
+        let unk54 =  c.read_u32::<BE>()?;
+        let unk58 =  c.read_u32::<BE>()?;
+        let unk5c =  c.read_u32::<BE>()?;
+        let last_block_uncompressed_size =  c.read_u32::<BE>()?;
+        let egdt_size =  c.read_u32::<BE>()?;
+        let block_count =  c.read_u32::<BE>()?;
+        let unk6c =  c.read_u32::<BE>()?;
+        let blocks =  DCX::read_blocks(c, block_count)?;
+
+        let egdt = EGDTHeader {
+            egdt: egdt,
+            unk50,
+            unk54,
+            unk58,
+            unk5c,
+            last_block_uncompressed_size,
+            egdt_size,
+            block_count,
+            unk6c,
+            blocks,
+        };
+
+        Ok(egdt)
+    }
+
+    fn read_content(c: &mut Cursor<&[u8]>, header: &DCXHeader) -> Result<Vec<u8>, DantelionFormatsError> {
+        // Will have to look at a file.
+        // if header.format == "EDGE" {
+        //     let start = br.pos;
+        //     for block in header.blocks.unwrap() {
+        //         br.pos = start + block.data_offset;
+        //
+        //     }
+        // }
+
+        Ok(c.read_bytes(header.compressed_size as usize)?)
+    }
+
+    fn read_blocks(c: &mut Cursor<&[u8]>, count: u32) -> Result<Vec<Block>, DantelionFormatsError> {
+        let mut blocks = Vec::with_capacity(count as usize);
+        for i in 0..count {
+            let block = Block {
+                unk00: c.read_u32::<BE>()?,
+                data_offset: c.read_u32::<BE>()?,
+                data_length: c.read_u32::<BE>()?,
+                unk0c: c.read_u32::<BE>()?,
+            };
+            blocks.push(block);
+        }
+
+        Ok(blocks)
+    }
+
 }
+
+
+
 
 impl Validate for DCXHeader {
     fn validate(&self) {
@@ -182,51 +237,17 @@ impl Validate for DCXHeader {
 
         if self.format == "EDGE" {
             let egdt = self.egdt.clone().unwrap();
-            assert_eq!(egdt, "EgdT", "self.egdt was {}", egdt);
-            let unk50 = self.unk50.clone().unwrap();
-            assert_eq!(unk50, 0x10100, "self.unk3C was {}", unk50);
-            let unk54 = self.unk54.clone().unwrap();
-            assert_eq!(unk54, 0x24, "self.unk54 was {}", unk54);
-            let unk58 = self.unk58.clone().unwrap();
-            assert_eq!(unk58, 0x10, "self.unk58 was {}", unk58);
-            let unk5c = self.unk5C.clone().unwrap();
-            assert_eq!(unk5c, 0x10000, "self.unk5C was {}", unk5c);
-            let unk6c = self.unk6C.clone().unwrap();
-            assert_eq!(unk6c, 0x100000, "self.unk6C was {}", unk6c);
+            assert_eq!(egdt.egdt, "EgdT", "self.egdt was {}", egdt.egdt);
+            assert_eq!(egdt.unk50, 0x10100, "self.unk3C was {}", egdt.unk50);
+            assert_eq!(egdt.unk54, 0x24, "self.unk54 was {}", egdt.unk54);
+            assert_eq!(egdt.unk58, 0x10, "self.unk58 was {}", egdt.unk58);
+            assert_eq!(egdt.unk5c, 0x10000, "self.unk5C was {}", egdt.unk5c);
+            assert_eq!(egdt.unk6c, 0x100000, "self.unk6C was {}", egdt.unk6c);
 
-            for block in self.blocks.clone().unwrap() {
+            for block in egdt.blocks {
                 assert_eq!(block.unk00, 0, "block.unk00 was {}", block.unk00);
-                assert_eq!(block.unk0C, 1, "block.unk0C was {}", block.unk0C);
+                assert_eq!(block.unk0c, 1, "block.unk0c was {}", block.unk0c);
             }
         }
     }
 }
-
-fn read_content(br: &mut BinaryReader, header: &DCXHeader) -> Result<Vec<u8>, DantelionFormatsError> {
-    // Will have to look at a file.
-    // if header.format == "EDGE" {
-    //     let start = br.pos;
-    //     for block in header.blocks.unwrap() {
-    //         br.pos = start + block.dataOffset;
-    //
-    //     }
-    // }
-
-    Ok(br.read_bytes(header.compressed_size as usize)?.to_vec())
-}
-
-fn read_blocks(br: &mut BinaryReader, count: u32) -> Result<Vec<Block>, DantelionFormatsError> {
-    let mut blocks = Vec::with_capacity(count as usize);
-    for i in 0..count {
-        let block = Block {
-            unk00: br.read_u32()?,
-            dataOffset: br.read_u32()?,
-            dataLength: br.read_u32()?,
-            unk0C: br.read_u32()?,
-        };
-        blocks.push(block);
-    }
-
-    Ok(blocks)
-}
-

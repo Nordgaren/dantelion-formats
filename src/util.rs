@@ -81,10 +81,10 @@ fn get_steam_install_path() -> Option<String> {
     None
 }
 
-pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String, DantelionFormatsError> {
-    let string_bytes = br.read_bytes(size)?;
-    Ok(String::from_utf8(string_bytes.to_vec())?)
-}
+// pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String, DantelionFormatsError> {
+//     let string_bytes = br.read_bytes(size)?;
+//     Ok(String::from_utf8(string_bytes.to_vec())?)
+// }
 
 pub fn reverse_bits(byte: u8) -> u8 {
     let mut val = 0;
@@ -103,33 +103,17 @@ pub fn reverse_bits(byte: u8) -> u8 {
     return rev;
 }
 
-pub(crate) fn read_utf16_string(br: &mut BinaryReader) -> Result<String, DantelionFormatsError> {
-    let mut chrs = Vec::new();
-    while let chr = br.read_u16()? {
-        if chr == 0 {
-            break;
-        }
-        chrs.push(chr);
-    }
-
-    Ok(String::from_utf16(chrs.as_slice())?)
-}
-
-pub fn get_utf16_name_length(br: &mut BinaryReader) -> usize {
-    let start = br.pos;
-    let mut count = 1;
-
-    loop {
-        let short = br.read_u16().unwrap();
-        if short == 0 {
-            break;
-        }
-        count += 1;
-    }
-
-    br.jmp(start);
-    return count;
-}
+// pub(crate) fn read_utf16_string(br: &mut BinaryReader) -> Result<String, DantelionFormatsError> {
+//     let mut chrs = Vec::new();
+//     while let chr = br.read_u16()? {
+//         if chr == 0 {
+//             break;
+//         }
+//         chrs.push(chr);
+//     }
+//
+//     Ok(String::from_utf16(chrs.as_slice())?)
+// }
 
 // pub fn read_as_type<T>(reader: &mut impl Read) -> Result<T>
 //     where
@@ -149,10 +133,10 @@ pub fn get_utf16_name_length(br: &mut BinaryReader) -> usize {
 //     Ok(result)
 // }
 
-pub fn peek_byte(br: &mut BinaryReader, position: usize) -> Result<u8, DantelionFormatsError> {
-    let start = br.pos;
-    br.jmp(position);
-    let byte = br.read_u8()?;
-    br.jmp(start);
-    Ok(byte)
-}
+// pub fn peek_byte(br: &mut BinaryReader, position: usize) -> Result<u8, DantelionFormatsError> {
+//     let start = br.pos;
+//     br.jmp(position);
+//     let byte = br.read_u8()?;
+//     br.jmp(start);
+//     Ok(byte)
+// }

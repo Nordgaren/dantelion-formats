@@ -1,7 +1,8 @@
 use std::fs;
-use std::io::{Error, ErrorKind};
+use std::io::{Cursor, Error, ErrorKind};
 use std::string::FromUtf8Error;
-use binary_reader::{BinaryReader, Endian};
+use binary_interpreter::binary_reader::{BinaryPeeker, BinaryReader};
+use byteorder::{BE, LE, ByteOrder, ReadBytesExt};
 use crate::dcx::DCX;
 use crate::error::DantelionFormatsError;
 use crate::util;
@@ -93,56 +94,22 @@ impl BND4 {
     }
 
     pub fn from_bytes(file: &[u8]) -> Result<BND4, DantelionFormatsError> {
-        let mut bytes;
-
-
-        if DCX::is(file) {
+        let mut bytes = if DCX::is(file) {
             let dcx = DCX::from_bytes(file)?;
-            bytes = dcx.decompress()?;
+            dcx.decompress()?
         } else {
-            bytes = file.to_vec();
-        }
-        let mut br = BinaryReader::from_vec(&bytes);
-
-        // IDK if I should peek and check first, or just read up until BE and then do the rest of the parsing in the header declaration
-        let magic = util::read_fixed_string(&mut br, BND4::MAGIC_SIZE)?;
-        let unk04 = br.read_u8()?;
-        let unk05 = br.read_u8()?;
-        let unk06 = br.read_u8()?;
-        let unk07 = br.read_u8()?;
-        let unk08 = br.read_u8()?;
-        let big_endian = br.read_bool()?;
-
-        if big_endian { br.set_endian(Endian::Big) } else { br.set_endian(Endian::Little) };
-
-        let mut header = BND4Header {
-            magic,
-            unk04,
-            unk05,
-            unk06,
-            unk07,
-            unk08,
-            big_endian,
-            unk0a: br.read_u8()?,
-            unk0b: br.read_u8()?,
-            file_count: br.read_u32()?,
-            header_size: br.read_u64()?,
-            version: util::read_fixed_string(&mut br, BND4::VERSION_SIZE)?,
-            file_header_size: br.read_u64()?,
-            file_headers_end: br.read_u64()?,
-            unicode: br.read_bool()?,
-            raw_format: br.read_u8()?,
-            extended: br.read_u8()?,
-            unk33: br.read_u8()?,
-            unk34: br.read_u32()?,
-            buckets_offset: br.read_u64()?,
+            file.to_vec()
         };
+        let mut c = Cursor::new(&bytes[..]);
 
-        header.validate();
-
-        let files = read_bnd4_files(&mut br, &header)?;
-
-        let buckets: Option<BND4BucketHeader> = if header.buckets_offset != 0 { Some(read_bnd4_bucket_header(&mut br, &header)?) } else { None };
+        let be = c.peek_u8(BND4::ENDIANNESS_OFFSET)? != 0;
+        let header = if be { BND4::read_bnd4_header::<BE>(&mut c)? } else { BND4::read_bnd4_header::<LE>(&mut c)? };
+        let files = if be { BND4::read_bnd4_files::<BE>(&mut c, &header)? } else { BND4::read_bnd4_files::<LE>(&mut c, &header)? };
+        let buckets: Option<BND4BucketHeader> = if header.buckets_offset != 0 {
+            Some(if be { BND4::read_bnd4_bucket_header::<BE>(&mut c, &header)?} else {BND4::read_bnd4_bucket_header::<LE>(&mut c, &header)?})
+        } else {
+            None
+        };
 
         Ok(BND4 {
             header,
@@ -150,124 +117,155 @@ impl BND4 {
             buckets,
         })
     }
-}
 
-fn read_bnd4_bucket_header(br: &mut BinaryReader, header: &BND4Header) -> Result<BND4BucketHeader, DantelionFormatsError> {
-    let start = br.pos;
-    br.jmp(header.buckets_offset as usize);
-    let hashes_offset = br.read_u64()? as usize;
-    let bucket_count = br.read_u32()?;
-    let buckets_header_size = br.read_u8()?;
-    let bucket_size = br.read_u8()?;
-    let hash_size = br.read_u8()?;
-    let unk0f = br.read_u8()?;
-    let buckets = read_bnd4_buckets(br, bucket_count as usize)?;
-    let hashes = read_bnd4_hashes(br, header, hashes_offset)?;
-    let buckets = BND4BucketHeader {
-        hashes_offset,
-        bucket_count,
-        buckets_header_size,
-        bucket_size,
-        hash_size,
-        unk0f,
-        buckets,
-        hashes,
-    };
+    fn read_bnd4_header<T: ByteOrder>(c: &mut Cursor<&[u8]>) -> Result<BND4Header, DantelionFormatsError> {
 
-    br.jmp(start);
-    Ok(buckets)
-}
+        let mut header = BND4Header {
+            magic: c.read_fixed_cstr(BND4::MAGIC_SIZE)?,
+            unk04: c.read_u8()?,
+            unk05: c.read_u8()?,
+            unk06: c.read_u8()?,
+            unk07: c.read_u8()?,
+            unk08: c.read_u8()?,
+            big_endian: c.read_u8()? != 0,
+            unk0a: c.read_u8()?,
+            unk0b: c.read_u8()?,
+            file_count: c.read_u32::<T>()?,
+            header_size: c.read_u64::<T>()?,
+            version: c.read_fixed_cstr(BND4::VERSION_SIZE)?,
+            file_header_size: c.read_u64::<T>()?,
+            file_headers_end: c.read_u64::<T>()?,
+            unicode: c.read_u8()? != 0,
+            raw_format: c.read_u8()?,
+            extended: c.read_u8()?,
+            unk33: c.read_u8()?,
+            unk34: c.read_u32::<T>()?,
+            buckets_offset: c.read_u64::<T>()?,
+        };
 
-fn read_bnd4_hashes(br: &mut BinaryReader, header: &BND4Header, hashes_offset: usize) -> Result<Vec<BND4Hash>, DantelionFormatsError> {
-    let mut hashes = Vec::with_capacity(header.file_count as usize);
-    for i in 0..header.file_count {
-        hashes.push(BND4Hash {
-            hash: br.read_u32()?,
-            index: br.read_u32()?,
-        })
+        header.validate();
+
+        Ok(header)
+
     }
 
-    Ok(hashes)
-}
+    fn read_bnd4_bucket_header<T: ByteOrder>(c: &mut Cursor<&[u8]>, header: &BND4Header) -> Result<BND4BucketHeader, DantelionFormatsError> {
+        let start = c.position();
+        c.set_position(header.buckets_offset);
+        let hashes_offset = c.read_u64::<T>()? as usize;
+        let bucket_count = c.read_u32::<T>()?;
+        let buckets_header_size = c.read_u8()?;
+        let bucket_size = c.read_u8()?;
+        let hash_size = c.read_u8()?;
+        let unk0f = c.read_u8()?;
+        let buckets = BND4::read_bnd4_buckets::<T>(c, bucket_count as usize)?;
+        let hashes = BND4::read_bnd4_hashes::<T>(c, header, hashes_offset)?;
+        let buckets = BND4BucketHeader {
+            hashes_offset,
+            bucket_count,
+            buckets_header_size,
+            bucket_size,
+            hash_size,
+            unk0f,
+            buckets,
+            hashes,
+        };
 
-fn read_bnd4_buckets(br: &mut BinaryReader, count: usize) -> Result<Vec<BND4Bucket>, DantelionFormatsError> {
-    let mut buckets = Vec::with_capacity(count);
-    for i in 0..count {
-        buckets.push(BND4Bucket {
-            count: br.read_u32()?,
-            index: br.read_u32()?,
-        })
+        c.set_position(start);
+        Ok(buckets)
     }
 
-    Ok(buckets)
-}
-
-fn read_bnd4_files(br: &mut BinaryReader, header: &BND4Header) -> Result<Vec<File>, DantelionFormatsError> {
-    let format = if header.big_endian { header.raw_format } else { util::reverse_bits(header.raw_format) };
-    let mut files: Vec<File> = Vec::with_capacity(header.file_count as usize);
-    for i in 0..header.file_count {
-        let raw_flags = br.read_u8()?;
-        let unk01 = br.read_u8()?;
-        let unk02 = br.read_u8()?;
-        let unk03 = br.read_u8()?;
-        let unk04 = br.read_i32()?;
-        let compressed_size = br.read_u64()?;
-        let uncompressed_size = if format & 0b00100000 != 0 { Some(br.read_u64()?) } else { None };
-        let data_offset = br.read_u32()?;
-        let end = if br.endian == Endian::Big { 1 } else { 0 };
-        let mut id = if format & 0b00000010 != 0 { Some(br.read_i32()?) } else { None };
-        let name_offset = if format & 0b00000100 != 0 || format & 0b00001000 != 0 { Some(br.read_u32()?) } else { None };
-        let mut zero = None;
-        if format == 0b00000100 {
-            id = Some(br.read_i32()?);
-            zero = Some(br.read_u32()?);
+    fn read_bnd4_hashes<T: ByteOrder>(c: &mut Cursor<&[u8]>, header: &BND4Header, hashes_offset: usize) -> Result<Vec<BND4Hash>, DantelionFormatsError> {
+        let mut hashes = Vec::with_capacity(header.file_count as usize);
+        for i in 0..header.file_count {
+            hashes.push(BND4Hash {
+                hash: c.read_u32::<T>()?,
+                index: c.read_u32::<T>()?,
+            })
         }
 
-        let name = match name_offset {
-            None => None,
-            Some(offset) => Some(get_file_name(br, offset, header)?)
-        };
-
-        let data: Option<Vec<u8>> = Some(vec![]);
-        let file = File {
-            raw_flags,
-            unk01,
-            unk02,
-            unk03,
-            unk04,
-            compressed_size,
-            uncompressed_size,
-            data_offset,
-            id,
-            name_offset,
-            zero,
-            name,
-            data,
-        };
-
-        file.validate();
-        files.push(file);
+        Ok(hashes)
     }
 
-    Ok(files)
-}
+    fn read_bnd4_buckets<T: ByteOrder>(c: &mut Cursor<&[u8]>, count: usize) -> Result<Vec<BND4Bucket>, DantelionFormatsError> {
+        let mut buckets = Vec::with_capacity(count);
+        for i in 0..count {
+            buckets.push(BND4Bucket {
+                count: c.read_u32::<T>()?,
+                index: c.read_u32::<T>()?,
+            })
+        }
 
-fn get_file_name(br: &mut BinaryReader, offset: u32, header: &BND4Header) -> Result<String, DantelionFormatsError> {
-    let start = br.pos;
-    br.jmp(offset as usize);
-    let name: String;
-    if header.unicode {
-        name = util::read_utf16_string(br)?;
-    } else {
-        name = br.read_cstr()?;
+        Ok(buckets)
     }
 
-    br.jmp(start);
-    return Ok(name);
+    fn read_bnd4_files<T: ByteOrder>(c: &mut Cursor<&[u8]>, header: &BND4Header) -> Result<Vec<File>, DantelionFormatsError> {
+        let format = if header.big_endian { header.raw_format } else { util::reverse_bits(header.raw_format) };
+        let mut files: Vec<File> = Vec::with_capacity(header.file_count as usize);
+        for i in 0..header.file_count {
+            let raw_flags = c.read_u8()?;
+            let unk01 = c.read_u8()?;
+            let unk02 = c.read_u8()?;
+            let unk03 = c.read_u8()?;
+            let unk04 = c.read_i32::<T>()?;
+            let compressed_size = c.read_u64::<T>()?;
+            let uncompressed_size = if format & 0b00100000 != 0 { Some(c.read_u64::<T>()?) } else { None };
+            let data_offset = c.read_u32::<T>()?;
+            let mut id = if format & 0b00000010 != 0 { Some(c.read_i32::<T>()?) } else { None };
+            let name_offset = if format & 0b00000100 != 0 || format & 0b00001000 != 0 { Some(c.read_u32::<T>()?) } else { None };
+            let mut zero = None;
+            if format == 0b00000100 {
+                id = Some(c.read_i32::<T>()?);
+                zero = Some(c.read_u32::<T>()?);
+            }
+
+            let name = match name_offset {
+                None => None,
+                Some(offset) => Some(BND4::get_file_name(c, offset as u64, header)?)
+            };
+
+            let data: Option<Vec<u8>> = Some(vec![]);
+            let file = File {
+                raw_flags,
+                unk01,
+                unk02,
+                unk03,
+                unk04,
+                compressed_size,
+                uncompressed_size,
+                data_offset,
+                id,
+                name_offset,
+                zero,
+                name,
+                data,
+            };
+
+            file.validate();
+            files.push(file);
+        }
+
+        Ok(files)
+    }
+
+    fn get_file_name(c: &mut Cursor<&[u8]>, offset: u64, header: &BND4Header) -> Result<String, DantelionFormatsError> {
+        let start = c.position();
+        c.set_position(offset);
+        let name: String;
+        if header.unicode {
+            name = c.read_wcstr()?;
+        } else {
+            name = c.read_cstr()?;
+        }
+
+        c.set_position(start);
+        return Ok(name);
+    }
 }
+
+
 
 impl Validate for BND4Header {
-
     fn validate(&self) {
         assert_eq!(self.magic, "BND4", "Magic was {}", self.magic);
         assert!(self.unk04 == 0 || self.unk04 == 1, "unk04 was {}", self.unk04);

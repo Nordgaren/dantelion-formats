@@ -1,5 +1,5 @@
 [package]
-name = "dantelion-formats"
+name = "Dantelion-Formats"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,8 +7,9 @@ edition = "2021"
 
 [dependencies]
 openssl = "0.10"
-binary-reader = "0.4.5"
+byteorder = "1.4.3"
 winreg = "0.10.1"
 miniz_oxide = "0.6.2"
 libloading = "0.7"
 thiserror = "1.0.38"
+binary-interpreter = { path = "../binary-interpreter"}
