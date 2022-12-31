@@ -210,8 +210,7 @@ impl BHD5 {
             hash,
             range_count,
             ranges,
-        }
-        )
+        })
     }
 
     fn read_aes_key(c: &mut Cursor<&[u8]>, aes_key_offset: u64) -> Result<AESKey, DantelionFormatsError> {
@@ -227,15 +226,14 @@ impl BHD5 {
             key,
             range_count,
             ranges,
-        }
-        )
+        })
     }
 
-    fn read_ranges(br: &mut Cursor<&[u8]>, range_count: u32) -> Result<Vec<Range>, DantelionFormatsError> {
+    fn read_ranges(c: &mut Cursor<&[u8]>, range_count: u32) -> Result<Vec<Range>, DantelionFormatsError> {
         let mut ranges: Vec<Range> = Vec::with_capacity(range_count as usize);
         for _ in 0..range_count {
-            let begin = br.read_u64::<LE>()?;
-            let end = br.read_u64::<LE>()?;
+            let begin = c.read_u64::<LE>()?;
+            let end = c.read_u64::<LE>()?;
             ranges.push(Range { begin, end })
         }
         return Ok(ranges);

@@ -60,26 +60,21 @@ fn search_steam_for_oodle(steam_path: String) -> Option<String> {
 }
 
 fn get_steam_install_path() -> Option<String> {
-    for REGISTRY_LOCATION in STEAM_REGISTRY_LOCATIONS {
-        let hkey = if REGISTRY_LOCATION.0 == "HKCU" { HKEY_CURRENT_USER } //I hate this :(
-        else if REGISTRY_LOCATION.0 == "HKLM" { HKEY_LOCAL_MACHINE } else { return None; };
+    for location in STEAM_REGISTRY_LOCATIONS {
+        let hkey = if location.0 == "HKCU" { HKEY_CURRENT_USER } //I hate this :(
+        else if location.0 == "HKLM" { HKEY_LOCAL_MACHINE } else { return None; };
 
         let reg_key = RegKey::predef(hkey)
-            .open_subkey(REGISTRY_LOCATION.1);
+            .open_subkey(location.1);
 
         match reg_key {
-            Ok(key) => return Some(key.get_value(REGISTRY_LOCATION.2).unwrap()),
+            Ok(key) => return Some(key.get_value(location.2).unwrap()),
             Err(_) => {}
         }
     }
 
     None
 }
-
-// pub fn read_fixed_string(br: &mut BinaryReader, size: usize) -> Result<String, DantelionFormatsError> {
-//     let string_bytes = br.read_bytes(size)?;
-//     Ok(String::from_utf8(string_bytes.to_vec())?)
-// }
 
 pub fn reverse_bits(byte: u8) -> u8 {
     let mut val = 0;
@@ -96,18 +91,6 @@ pub fn reverse_bits(byte: u8) -> u8 {
 
     return rev;
 }
-
-// pub(crate) fn read_utf16_string(br: &mut BinaryReader) -> Result<String, DantelionFormatsError> {
-//     let mut chrs = Vec::new();
-//     while let chr = br.read_u16()? {
-//         if chr == 0 {
-//             break;
-//         }
-//         chrs.push(chr);
-//     }
-//
-//     Ok(String::from_utf16(chrs.as_slice())?)
-// }
 
 // pub fn read_as_type<T>(reader: &mut impl Read) -> Result<T>
 //     where
@@ -127,10 +110,3 @@ pub fn reverse_bits(byte: u8) -> u8 {
 //     Ok(result)
 // }
 
-// pub fn peek_byte(br: &mut BinaryReader, position: usize) -> Result<u8, DantelionFormatsError> {
-//     let start = br.pos;
-//     br.jmp(position);
-//     let byte = br.read_u8()?;
-//     br.jmp(start);
-//     Ok(byte)
-// }
