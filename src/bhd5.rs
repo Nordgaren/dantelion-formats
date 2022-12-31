@@ -1,11 +1,10 @@
 use std::io::Cursor;
 use std::fs;
-use crate::{crypto_util, util};
+use crate::{crypto_util};
 use crate::error::DantelionFormatsError;
 use crate::util::Validate;
-use byteorder::{LE, BE, ReadBytesExt};
+use byteorder::{LE, ReadBytesExt};
 use binary_interpreter::binary_reader::BinaryReader;
-use binary_interpreter::Endian;
 //Idk how necessary this is. Might need it for DS1, idk.
 pub(crate) enum GameType {
     DemonSouls,
@@ -101,7 +100,6 @@ impl BHD5 {
 
     pub fn from_bytes(file: &[u8]) -> Result<BHD5, DantelionFormatsError> {
         let mut c = Cursor::new(file);
-        println!("{:02x}", file.len());
         let header = BHD5::read_bhd5_header(&mut c)?;
         let format = BHD5::get_bhd5_format(&header.salt);
 
@@ -137,7 +135,7 @@ impl BHD5 {
         let buckets_offset=  c.read_u32::<LE>()?;
         let salt_len=  c.read_u32::<LE>()?;
         let salt=  c.read_bytes(salt_len as usize)?;
-        let mut header = BHD5Header {
+        let header = BHD5Header {
             magic,
             unk04,
             unk05,

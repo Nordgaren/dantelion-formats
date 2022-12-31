@@ -1,9 +1,8 @@
-use std::borrow::Borrow;
 use std::io::{Error, ErrorKind};
 use libloading::os::windows::{Library, Symbol};
 use crate::error::DantelionFormatsError;
 use crate::oodle::CheckCRC::No;
-use crate::oodle::Decode_ThreadPhase::ThreadPhaseAll;
+use crate::oodle::DecodeThreadPhase::ThreadPhaseAll;
 use crate::oodle::FuzzSafe::Yes;
 use crate::util::get_oodle_path;
 
@@ -27,7 +26,7 @@ Lots = 3,
 Force32 = 0x40000000
 }
 #[repr(u32)]
-enum Decode_ThreadPhase
+enum DecodeThreadPhase
 {
 ThreadPhase1 = 1,
 ThreadPhase2 = 2,
@@ -39,7 +38,7 @@ ThreadPhaseAll = 3
 //     fn OodleLZ_Decompress(comp_buf: &[u8], comp_buf_size: usize, raw_buf: &[u8], raw_len: usize,
 //                           fuzz_safe: FuzzSafe, check_CRC: CheckCRC, verbosity: Verbosity,
 //                           dec_buf_base: usize, dec_buf_size: usize, fp_callback: usize, callback_user_data: usize,
-//                           decoder_memory: usize, decoder_memory_size: usize, thread_phase: Decode_ThreadPhase) -> usize;
+//                           decoder_memory: usize, decoder_memory_size: usize, thread_phase: DecodeThreadPhase) -> usize;
 //
 //     fn OodleLZ_GetDecodeBufferSize(raw_size: usize, corruption_possible: bool) -> usize;
 // }
@@ -63,8 +62,8 @@ pub unsafe fn decompress(data: &[u8], uncompressed_size: usize) -> Result<Vec<u8
 
     let oodle_lz_decompress :Symbol<unsafe extern fn(*const u8, usize, *mut u8, usize,
                                                      FuzzSafe, CheckCRC, Verbosity,
-                                                      usize, usize, usize, usize,
-                                                      usize, usize, Decode_ThreadPhase) -> usize> =
+                                                     usize, usize, usize, usize,
+                                                     usize, usize, DecodeThreadPhase) -> usize> =
         oodle.get(b"OodleLZ_Decompress")?;
 
 
@@ -76,7 +75,7 @@ pub unsafe fn decompress(data: &[u8], uncompressed_size: usize) -> Result<Vec<u8
     let raw_len = oodle_lz_decompress(data.as_ptr(), data.len(), raw_buf.as_mut_ptr(), uncompressed_size,
                                                Yes, No, Verbosity::None, 0, 0, 0, 0, 0, 0, ThreadPhaseAll);
 
-    oodle.close();
+    oodle.close()?;
     raw_buf.truncate(raw_len);
 
     Ok(raw_buf)

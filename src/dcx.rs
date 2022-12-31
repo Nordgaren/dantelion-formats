@@ -1,11 +1,9 @@
 use std::fs;
-use std::io::{Cursor, Error, ErrorKind};
-use std::string::FromUtf8Error;
+use std::io::{Cursor};
 use binary_interpreter::binary_reader::BinaryReader;
 use byteorder::{BE, ReadBytesExt};
-use miniz_oxide::inflate::core::decompress;
 use miniz_oxide::inflate::decompress_to_vec;
-use crate::{oodle, util};
+use crate::{oodle};
 use crate::error::DantelionFormatsError;
 use crate::util::Validate;
 
@@ -29,14 +27,14 @@ pub struct DCXHeader {
     pub compressed_size: u32,
     pub dcp: String,
     pub format: String,
-    pub unk2C: u32,
+    pub unk2c: u32,
     pub unk30: u8,
     pub unk31: u8,
     pub unk32: u8,
     pub unk33: u8,
     pub unk34: u32,
     pub unk38: u32,
-    pub unk3C: u32,
+    pub unk3c: u32,
     pub unk40: u32,
     pub dca: String,
     pub dca_size: u32,
@@ -106,7 +104,7 @@ impl DCX {
     pub fn from_bytes(file: &[u8]) -> Result<DCX, DantelionFormatsError> {
         let mut c = Cursor::new(file);
 
-        let mut header = DCX::read_dcx_header(&mut c)?;
+        let header = DCX::read_dcx_header(&mut c)?;
 
         let content = DCX::read_content(&mut c, &header)?;
 
@@ -130,14 +128,14 @@ impl DCX {
             compressed_size: c.read_u32::<BE>()?,
             dcp: c.read_fixed_cstr(DCX::DCP_SIZE)?,
             format: c.read_fixed_cstr(DCX::FORMAT_SIZE)?,
-            unk2C: c.read_u32::<BE>()?,
+            unk2c: c.read_u32::<BE>()?,
             unk30: c.read_u8()?,
             unk31: c.read_u8()?,
             unk32: c.read_u8()?,
             unk33: c.read_u8()?,
             unk34: c.read_u32::<BE>()?,
             unk38: c.read_u32::<BE>()?,
-            unk3C: c.read_u32::<BE>()?,
+            unk3c: c.read_u32::<BE>()?,
             unk40: c.read_u32::<BE>()?,
             dca: c.read_fixed_cstr(DCX::DCA_SIZE)?,
             dca_size: c.read_u32::<BE>()?,
@@ -197,7 +195,7 @@ impl DCX {
 
     fn read_blocks(c: &mut Cursor<&[u8]>, count: u32) -> Result<Vec<Block>, DantelionFormatsError> {
         let mut blocks = Vec::with_capacity(count as usize);
-        for i in 0..count {
+        for _ in 0..count {
             let block = Block {
                 unk00: c.read_u32::<BE>()?,
                 data_offset: c.read_u32::<BE>()?,
@@ -225,20 +223,20 @@ impl Validate for DCXHeader {
         assert_eq!(self.dcs, "DCS\0", "self.dcs was {}", self.dcs);
         assert_eq!(self.dcp, "DCP\0", "self.dcp was {}", self.dcp);
         assert!(self.format == "DFLT" || self.format == "EDGE" || self.format == "KRAK", "self.format was {}", self.format);
-        assert_eq!(self.unk2C, 0x20, "self.unk2C was {}", self.unk2C);
+        assert_eq!(self.unk2c, 0x20, "self.unk2c was {}", self.unk2c);
         assert!(self.unk30 == 6 || self.unk30 == 8 || self.unk30 == 9, "self.unk30 was {}", self.unk30);
         assert_eq!(self.unk31, 0, "self.unk31 was {}", self.unk31);
         assert_eq!(self.unk32, 0, "self.unk32 was {}", self.unk32);
         assert_eq!(self.unk33, 0, "self.unk33 was {}", self.unk33);
         assert!(self.unk34 == 0 || self.unk34 == 0x10000, "self.dcxOffset was {}", self.unk34);
         assert!(self.unk38 == 0 || self.unk38 == 0xF000000, "self.dcxOffset was {}", self.unk38);
-        assert_eq!(self.unk3C, 0, "self.unk3C was {}", self.unk3C);
+        assert_eq!(self.unk3c, 0, "self.unk3c was {}", self.unk3c);
         assert_eq!(self.dca, "DCA\0", "self.dca was {}", self.dca);
 
         if self.format == "EDGE" {
             let egdt = self.egdt.clone().unwrap();
             assert_eq!(egdt.egdt, "EgdT", "self.egdt was {}", egdt.egdt);
-            assert_eq!(egdt.unk50, 0x10100, "self.unk3C was {}", egdt.unk50);
+            assert_eq!(egdt.unk50, 0x10100, "self.unk3c was {}", egdt.unk50);
             assert_eq!(egdt.unk54, 0x24, "self.unk54 was {}", egdt.unk54);
             assert_eq!(egdt.unk58, 0x10, "self.unk58 was {}", egdt.unk58);
             assert_eq!(egdt.unk5c, 0x10000, "self.unk5C was {}", egdt.unk5c);

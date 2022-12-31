@@ -1,14 +1,9 @@
-use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Read, ErrorKind};
-use std::mem::size_of;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::string::FromUtf8Error;
-use binary_reader::{BinaryReader, Endian};
 use winreg;
 use winreg::enums::*;
-use winreg::{HKEY, RegKey};
-use crate::error::DantelionFormatsError;
+use winreg::{RegKey};
 
 pub trait Validate {
     fn validate(&self);
@@ -47,7 +42,7 @@ fn search_steam_for_oodle(steam_path: String) -> Option<String> {
 
     for line in library_folders.lines().map(|x| x.unwrap()).skip_while(|p| p.contains("\"path\"")) {
         let split: Vec<&str> = line.split("\t").skip_while(|&x| !x.to_lowercase().contains("steam")).collect();
-        if (split.len() < 1) { continue; }
+        if split.len() < 1 { continue; }
 
         let steam_path = split[0].replace("\"", "");
         let elden_path = format!("{}\\steamapps\\common\\ELDEN RING\\Game\\oo2core_6_win64.dll", steam_path);
@@ -88,11 +83,10 @@ fn get_steam_install_path() -> Option<String> {
 
 pub fn reverse_bits(byte: u8) -> u8 {
     let mut val = 0;
-    let mut tmp = 0;
     let mut rev = 0;
     while val < 8
     {
-        tmp = byte & (1 << val);
+        let tmp = byte & (1 << val);
         if tmp > 0
         {
             rev = rev | (1 << ((8 - 1) - val));

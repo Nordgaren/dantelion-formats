@@ -20,7 +20,6 @@ const ER_REGULATION_PATH: &str = r"G:\Steam\steamapps\common\ELDEN RING\Game\reg
 mod tests {
     use std::fs;
     use std::path::Path;
-    use openssl::rsa::Rsa;
     use crate::bhd5::{BHD5, BHD5Format};
     use super::*;
     use crate::dcx::*;
@@ -54,6 +53,7 @@ mod tests {
 
         let bnd = BND4::from_bytes(&dcx.decompress().expect("Could not decompress DCX")).expect("Could not parse BND4!");
 
+        println!("Regulation decrypted. Output:");
         for file in bnd.files {
             println!("{}", file.name.unwrap());
         }
@@ -85,6 +85,7 @@ mod tests {
     #[test]
     fn read_oodle_compressed_bnd4() {
         let bnd4 = BND4::from_path(TEST_KRAKEN_PATH).expect("Could not read oodle compressed BND4!");
+        println!("Oodle compressed bnd4 decompressed. Output:");
         for file  in bnd4.files {
             println!("{}", file.name.unwrap());
         }

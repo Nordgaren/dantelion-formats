@@ -1,5 +1,4 @@
-use std::{fs, io};
-use std::io::{Read, Error, ErrorKind};
+use std::io::{Error, ErrorKind};
 use std::path::Path;
 use openssl::symm::*;
 use openssl::rsa::{Padding, Rsa};
@@ -30,7 +29,7 @@ pub(crate) fn decrypt_bhd5_file(file: &[u8], key: &[u8]) -> Result<Vec<u8>, Dant
 
     while len < file.len() {
         let mut decrypted_block = vec![0; key_size];
-        let next_block: usize = (len + key_size);
+        let next_block: usize = len + key_size;
         let block_data = &file[len..next_block];
         len += public_key.public_decrypt(block_data, &mut decrypted_block, Padding::NONE)?;
         decrypted_data.extend_from_slice(&decrypted_block[1..]);
